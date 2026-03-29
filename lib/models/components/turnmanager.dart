@@ -12,101 +12,177 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
   GameState state = GameState.playerTurn;
 
   List<Enemy> enemyList = [];
-
-  void updateEnemyList() {
-    enemyList = game.world.children.whereType<Enemy>().toList();
-  }
+  bool enemyDecidedRan = false;
+  bool decidingFinished = false;
 
   @override
-  FutureOr<void> onLoad() {    
-    super.onLoad();
-    updateEnemyList();
+  void onMount() {
+    super.onMount();
+    Future.delayed(Duration.zero, () {
+      updateEnemyList();
+    });
   }
 
   @override
   void update(double dt) {
     super.update(dt);
     if (game.dungeonBloc.state.dungeon.floors.isEmpty) return;
+    if (game.player == null) return;
 
-    final player = game.player;    
+    final player = game.player;
 
+    final ticker = player!.animationTickers?[player.current];
+
+    // print(state);
     switch (state) {
       case GameState.playerTurn:
-        //wait for player to decide action move/attack
-        // if (player!.playerState != PlayerState.idle) {
-        //   player.playerState = PlayerState.idle;
-        //   player.current = PlayerStateFacing.fromStateFacing(player.playerState, player.playerFacing);
-        // }
+        if (player.isMoving ||
+            player.playerState == PlayerState.attack ||
+            player.playerState == PlayerState.walk) {
+          state = GameState.playerAction;
+          enemyDecidedRan = false;
+          decidingFinished = false;
+        }
         return;
       case GameState.playerAction:
-        //wait for player action to finish
-        if (!player!.isMoving && player.playerState != PlayerState.idle) {
-          player.playerState = PlayerState.idle;
-          // player.current = PlayerStateFacing.fromStateFacing(player.playerState, player.playerFacing);
+        if (!enemyDecidedRan) {
+          enemyDecidedRan = true;
+          enemyDeciding(player.targetPosition);
         }
-        if (!player.isMoving && player.playerState == PlayerState.idle) {
-          state = GameState.enemyDeciding;
-        }
-        break;
-      case GameState.enemyDeciding:
-        //kill dead enemies
-        final activeenemies = enemyList.where((element) => element.enemyState == EnemyState.idle);
 
-        if (activeenemies.isEmpty) {
-          state = GameState.playerTurn;
+        bool isAttacking = player.playerState == PlayerState.attack;
+        bool isHurt = player.playerState == PlayerState.hurt;
+        print(player.playerState);
+        if ((isAttacking || isHurt) && (ticker == null || !ticker.done())) {
           return;
         }
 
-        for (final e in activeenemies) {
-          // print(e.enemyState);
-          // if (e.enemyState == EnemyState.sleeping || e.enemyState == EnemyState.dead || e.enemyState == EnemyState.wakingup) continue;
-          // if (e.enemyState == EnemyState.idle) {
-          final xdis = (e.position.x - player!.position.x);
-          final ydis = (e.position.y - player.position.y);
-          // print('xdis: $xdis ydis: $ydis');
-          if (rng.nextBool()) {
-            if (xdis.abs() + ydis.abs() == 16.0) {
-              // print('starting attack');
-              e.enemyState = EnemyState.attack;
-              if (xdis == -16.0) {
-                //right
-                e.enemyFacing = EnemyFacing.right;
-              } else if (xdis == 16.0) {
-                //left
-                e.enemyFacing = EnemyFacing.left;
-              } else if (ydis == -16.0) {
-                //down
-                e.enemyFacing = EnemyFacing.down;
-              } else if (ydis == 16.0) {
-                e.enemyFacing = EnemyFacing.up;
-              }
-              e.current = EnemyStateFacing.fromStateFacing(e.enemyState, e.enemyFacing);
-              e.animationTickers?[e.current]?.reset();
-            } else {
-              if ((player.position - e.position).length <= 64.0) {
-                //move to player
-                // print('move to player');
-                enemyMoveToPlayer(e, (player.position - e.position));
-              } else {
-                //wander
-                // print('wander');
-                enemyWander(e);
-              }
-            }
-          }
-          // }
+        //if player is done moving, not attacking and no enemies have a hurt animation playing
+        if (!player.isMoving && !isAttacking && !isHurt) {
+          state = GameState.enemyDeciding;
         }
-        state = GameState.enemyAction;
-        break;
+
+        return;
+      case GameState.enemyDeciding:
+        final hurtenemies = enemyList.any(
+          (e) =>
+              e.enemyState == EnemyState.hurt &&
+              !(e.animationTickers?[e.current]?.done() ?? true),
+        );
+
+        if (decidingFinished && !hurtenemies) {
+          executeEnemyActions(player.targetPosition);
+          state = GameState.enemyAction;
+        }
+        return;
       case GameState.enemyAction:
-        //execute enemy actions
-        bool busy = enemyList.any((e) => e.isMoving || e.enemyState == EnemyState.attack);
-        if (!busy) {
+        final activeenemies = enemyList.any(
+          (e) =>
+              e.isMoving ||
+              e.enemyState == EnemyState.hurt &&
+                  (e.animationTickers?[e.current]?.done() ?? true) ||
+              e.enemyState == EnemyState.attack,
+        );
+
+        bool isAnimationBusy = false;
+        if (player.playerState == PlayerState.hurt) {
+          isAnimationBusy = !(ticker?.done() ?? true);
+        }
+
+        if (!activeenemies && !isAnimationBusy) {
           state = GameState.playerTurn;
         }
-        break;
+        return;
       case GameState.gameOver:
         break;
+    }
+  }
+
+  void updateEnemyList() {
+    enemyList = game.world.children
+        .whereType<Enemy>()
+        .where(
+          (e) =>
+              e.enemyState != EnemyState.dead &&
+              e.enemyState != EnemyState.sleeping,
+        )
+        .toList();
+  }
+
+  void enemyDeciding(Vector2 playerDestination) {
+    enemyList = game.world.children
+        .whereType<Enemy>()
+        .where(
+          (e) =>
+              e.enemyState != EnemyState.dead &&
+              e.enemyState != EnemyState.sleeping,
+        )
+        .toList();
+
+    // final activeenemies = enemyList.where(
+    //   (element) => element.enemyState != EnemyState.sleeping,
+    // );
+
+    if (enemyList.isEmpty) {
+      decidingFinished = true;
+      state = GameState.playerTurn;
+      return;
+    }
+
+    for (final e in enemyList) {
+      final xdis = (e.position.x - playerDestination.x);
+      final ydis = (e.position.y - playerDestination.y);
+
+      final willattack = rng.nextInt(100) > 50;
+      final willmove = rng.nextInt(100) > 60;
+      final dist = xdis.abs() + ydis.abs();
+      e.queuedAction = EnemyAction.none;
+
+      if (willattack && dist == 16.0) {
+        e.queuedAction = EnemyAction.attack;
+        if (xdis == -16.0) {
+          e.queuedFacing = EnemyFacing.right;
+        } else if (xdis == 16.0) {
+          e.queuedFacing = EnemyFacing.left;
+        } else if (ydis == -16.0) {
+          e.queuedFacing = EnemyFacing.down;
+        } else if (ydis == 16.0) {
+          e.queuedFacing = EnemyFacing.up;
+        }
+      } else if (willmove && dist != 16.0) {
+        double actualdistance = (playerDestination - e.position).length;
+        if (actualdistance > 16.0 && actualdistance <= 64.0) {
+          e.queuedAction = EnemyAction.advance;
+        } else {
+          e.queuedAction = EnemyAction.wander;
+        }
+      }
+    }
+
+    decidingFinished = true;
+  }
+
+  void executeEnemyActions(Vector2 playerDestination) {
+    final activeenemies = enemyList.where(
+      (element) => element.queuedAction != EnemyAction.none,
+    );
+
+    if (activeenemies.isEmpty) {
+      state = GameState.playerTurn;
+      return;
+    }
+
+    for (final e in activeenemies) {
+      if (e.queuedAction == EnemyAction.attack) {
+        e.enemyState = EnemyState.attack;
+        e.enemyFacing = e.queuedFacing;
+        e.updateVisualState();
+      } else if (e.queuedAction == EnemyAction.advance) {
+        enemyMoveToPlayer(e, playerDestination - e.position);
+      } else if (e.queuedAction == EnemyAction.wander) {
+        enemyWander(e);
+      }
+      e.queuedAction = EnemyAction.none;
     }
   }
 
@@ -116,7 +192,8 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
 
       if (e.position.distanceTo(target) < 1.0) return true;
 
-      if (e.isMoving && e.targetPosition.distanceTo(target) < 1.0 || game.player!.position == e.targetPosition) {
+      if (e.isMoving && e.targetPosition.distanceTo(target) < 1.0 ||
+          game.player!.position == e.targetPosition) {
         return true;
       }
     }
@@ -124,22 +201,22 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
   }
 
   void enemyMoveToPlayer(Enemy e, Vector2 diff) {
-    Vector2 step = Vector2.zero();
+    EnemyFacing init;
+    EnemyFacing alt;
     if (diff.x.abs() > diff.y.abs()) {
-      step.x = diff.x.sign * 16;
+      init = diff.x > 0 ? EnemyFacing.right : EnemyFacing.left;
+      alt = diff.y > 0 ? EnemyFacing.down : EnemyFacing.up;
     } else {
-      step.y = diff.y.sign * 16;
+      init = diff.y > 0 ? EnemyFacing.down : EnemyFacing.up;
+      alt = diff.x > 0 ? EnemyFacing.right : EnemyFacing.left;      
     }
-    if (step.x < 0) {
-      e.enemyFacing = EnemyFacing.left;
-    } else if (step.x > 0) {
-      e.enemyFacing = EnemyFacing.right;
-    } else if (step.y < 0) {
-      e.enemyFacing = EnemyFacing.up;
-    } else if (step.y > 0) {
-      e.enemyFacing = EnemyFacing.down;
-    }
+    e.enemyFacing = init;    
     enemyTryToMove(e);
+    
+    if (e.enemyState == EnemyState.idle) {
+      e.enemyFacing = alt;
+      enemyTryToMove(e);
+    }
   }
 
   void enemyWander(Enemy e) {
@@ -149,7 +226,8 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
 
   void enemyTryToMove(Enemy e) {
     Vector2 potentialTarget = e.position + (getFacingVector(e) * 16);
-    if (!e.isColliding(potentialTarget) && !isTileOccupied(potentialTarget, e)) {
+    if (!e.isColliding(potentialTarget) &&
+        !isTileOccupied(potentialTarget, e)) {
       e.targetPosition = potentialTarget;
       e.isMoving = true;
       e.enemyState = EnemyState.walk;

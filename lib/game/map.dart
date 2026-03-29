@@ -10,6 +10,7 @@ import 'package:dungeoncrawler/models/components/environment/darkness.dart';
 import 'package:dungeoncrawler/models/components/environment/dungeon_floors.dart';
 import 'package:dungeoncrawler/models/components/environment/floor_tiles.dart';
 import 'package:dungeoncrawler/models/components/environment/lighting.dart';
+import 'package:dungeoncrawler/models/components/turnmanager.dart';
 import 'package:dungeoncrawler/models/enums/priority.dart';
 import 'package:dungeoncrawler/models/components/environment/props.dart';
 import 'package:dungeoncrawler/models/components/environment/torches.dart';
@@ -91,13 +92,6 @@ class GenerateMap extends Component with HasGameReference<DungeonCrawl>, Keyboar
     }
   }
 
-  // @override
-  // bool onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
-  //   _pressedKeys.clear();
-  //   _pressedKeys.addAll(keysPressed);
-  //   return false;
-  // }
-
   void _onNewState(DungeonState state) {
     if (state.dungeon.floors.isEmpty || _isBuilding) return;
 
@@ -111,6 +105,10 @@ class GenerateMap extends Component with HasGameReference<DungeonCrawl>, Keyboar
 
     final player = game.world.children.whereType<Player>().firstOrNull;
     player?.pressedKeys.clear();
+
+    Future.delayed(Duration.zero, () {
+      game.world.children.whereType<TurnManager>().firstOrNull?.updateEnemyList();
+    });
   }
 
   void buildMap(DungeonState state) async {

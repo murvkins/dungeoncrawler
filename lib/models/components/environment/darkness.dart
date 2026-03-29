@@ -21,7 +21,7 @@ class DarknessLayer extends Component with HasCollisionDetection, HasGameReferen
     final Rect rect = Rect.fromLTWH(0, 0, floor.width * 16.0, floor.height * 16.0);
     canvas.saveLayer(rect, Paint());
 
-    canvas.drawRect(rect, Paint()..color = const Color(0xF7000000));
+    canvas.drawRect(rect, Paint()..color = const Color(0xF0000000));
 
     final lightPaint = Paint()..blendMode = BlendMode.dstOut;
 

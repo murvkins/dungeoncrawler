@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:dungeoncrawler/bloc/dungeon_bloc/dungeon_bloc.dart';
 import 'package:dungeoncrawler/game/game.dart';
 import 'package:dungeoncrawler/models/components/characters/enemies/enemy_states.dart';
+import 'package:dungeoncrawler/models/components/characters/spritefactory.dart';
 import 'package:dungeoncrawler/models/components/environment/floor_tiles.dart';
+import 'package:dungeoncrawler/models/components/turnmanager.dart';
 import 'package:dungeoncrawler/models/enums/priority.dart';
 import 'package:flame/components.dart';
-import 'package:flame/sprite.dart';
 
-class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing> with HasGameReference<DungeonCrawl> {
+class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
+    with HasGameReference<DungeonCrawl> {
   final DungeonState renderedState;
 
   Enemy({
@@ -18,89 +20,33 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing> with HasGame
          position: position,
        );
 
-  static const double moveSpeed = 12.0;
+  static const double moveSpeed = 6.0;
   static const double wakuUpRange = 80.0;
   static const double aggroRange = 64;
 
   double movePercent = 0.0;
   Vector2 targetPosition = Vector2.zero();
   bool isMoving = false;
-  // bool hasAwoke = false;
+  bool hasDealtDamage = false;
 
   Vector2 velocity = Vector2.zero();
 
-  late EnemyState enemyState;
-  late EnemyFacing enemyFacing;
+  EnemyState enemyState = EnemyState.sleeping;
+  EnemyFacing enemyFacing = EnemyFacing.down;
+  late EnemyAction queuedAction;
+  late EnemyFacing queuedFacing;
+
+  int hp = 4;
 
   @override
   Future<void> onLoad() async {
-    final idleimage = await game.images.load('Skeleton1_Idle_with_shadow.png');
-    final walkimage = await game.images.load('Skeleton1_Walk_with_shadow.png');
-    final attackimage = await game.images.load('Skeleton1_Attack_with_shadow.png');
-    final hurtimage = await game.images.load('Skeleton1_Hurt_with_shadow.png');
-    final deathimage = await game.images.load('Skeleton1_Death_with_shadow.png');
-
-    final idleSpriteSheet = SpriteSheet(image: idleimage, srcSize: Vector2.all(64.0), spacing: 0);
-    final walkSpriteSheet = SpriteSheet(image: walkimage, srcSize: Vector2.all(64.0), spacing: 0);
-    final attackSpriteSheet = SpriteSheet(image: attackimage, srcSize: Vector2.all(64.0), spacing: 0);
-    final hurtSpriteSheet = SpriteSheet(image: hurtimage, srcSize: Vector2.all(64.0), spacing: 0);
-    final deathSpriteSheet = SpriteSheet(image: deathimage, srcSize: Vector2.all(64.0), spacing: 0);
-
-    animations = {
-      EnemyStateFacing.idledown: idleSpriteSheet.createAnimation(row: 0, stepTime: 0.1, to: 4),
-      EnemyStateFacing.idleup: idleSpriteSheet.createAnimation(row: 1, stepTime: 0.1, to: 4),
-      EnemyStateFacing.idleleft: idleSpriteSheet.createAnimation(row: 2, stepTime: 0.1, to: 4),
-      EnemyStateFacing.idleright: idleSpriteSheet.createAnimation(row: 3, stepTime: 0.1, to: 4),
-
-      EnemyStateFacing.walkdown: walkSpriteSheet.createAnimation(row: 0, stepTime: 0.05, to: 6),
-      EnemyStateFacing.walkup: walkSpriteSheet.createAnimation(row: 1, stepTime: 0.05, to: 6),
-      EnemyStateFacing.walkleft: walkSpriteSheet.createAnimation(row: 2, stepTime: 0.05, to: 6),
-      EnemyStateFacing.walkright: walkSpriteSheet.createAnimation(row: 3, stepTime: 0.05, to: 6),
-
-      EnemyStateFacing.attackdown: attackSpriteSheet.createAnimation(row: 0, stepTime: 0.07, to: 9, loop: false),
-      EnemyStateFacing.attackup: attackSpriteSheet.createAnimation(row: 1, stepTime: 0.07, to: 9, loop: false),
-      EnemyStateFacing.attackleft: attackSpriteSheet.createAnimation(row: 2, stepTime: 0.07, to: 9, loop: false),
-      EnemyStateFacing.attackright: attackSpriteSheet.createAnimation(row: 3, stepTime: 0.07, to: 9, loop: false),
-
-      EnemyStateFacing.hurtdown: hurtSpriteSheet.createAnimation(row: 0, stepTime: 0.15, to: 4, loop: false),
-      EnemyStateFacing.hurtup: hurtSpriteSheet.createAnimation(row: 1, stepTime: 0.15, to: 4, loop: false),
-      EnemyStateFacing.hurtleft: hurtSpriteSheet.createAnimation(row: 2, stepTime: 0.15, to: 4, loop: false),
-      EnemyStateFacing.hurtright: hurtSpriteSheet.createAnimation(row: 3, stepTime: 0.15, to: 4, loop: false),
-
-      EnemyStateFacing.deaddown: deathSpriteSheet.createAnimation(row: 0, stepTime: 0.15, to: 6, loop: false),
-      EnemyStateFacing.deadup: deathSpriteSheet.createAnimation(row: 1, stepTime: 0.15, to: 6, loop: false),
-      EnemyStateFacing.deadleft: deathSpriteSheet.createAnimation(row: 2, stepTime: 0.15, to: 6, loop: false),
-      EnemyStateFacing.deadright: deathSpriteSheet.createAnimation(row: 3, stepTime: 0.15, to: 6, loop: false),
-
-      EnemyStateFacing.wakingupdown: SpriteAnimation.spriteList(
-        deathSpriteSheet.createAnimation(row: 0, stepTime: 0.15, to: 5).frames.map((f) => f.sprite).toList().reversed.toList(),
-        stepTime: 0.15,
-        loop: false,
-      ),
-      EnemyStateFacing.wakingupup: SpriteAnimation.spriteList(
-        deathSpriteSheet.createAnimation(row: 1, stepTime: 0.15, to: 5).frames.map((f) => f.sprite).toList().reversed.toList(),
-        stepTime: 0.15,
-        loop: false,
-      ),
-      EnemyStateFacing.wakingupleft: SpriteAnimation.spriteList(
-        deathSpriteSheet.createAnimation(row: 2, stepTime: 0.15, to: 5).frames.map((f) => f.sprite).toList().reversed.toList(),
-        stepTime: 0.15,
-        loop: false,
-      ),
-      EnemyStateFacing.wakingupright: SpriteAnimation.spriteList(
-        deathSpriteSheet.createAnimation(row: 3, stepTime: 0.15, to: 5).frames.map((f) => f.sprite).toList().reversed.toList(),
-        stepTime: 0.15,
-        loop: false,
-      ),
-
-      EnemyStateFacing.sleepingdown: SpriteAnimation.spriteList([deathSpriteSheet.getSprite(0, 5)], stepTime: 1, loop: false),
-      EnemyStateFacing.sleepingup: SpriteAnimation.spriteList([deathSpriteSheet.getSprite(1, 5)], stepTime: 1, loop: false),
-      EnemyStateFacing.sleepingleft: SpriteAnimation.spriteList([deathSpriteSheet.getSprite(2, 5)], stepTime: 1, loop: false),
-      EnemyStateFacing.sleepingright: SpriteAnimation.spriteList([deathSpriteSheet.getSprite(3, 5)], stepTime: 1, loop: false),
-    };
-
     enemyState = EnemyState.sleeping;
     enemyFacing = enemy_facings[rng.nextInt(4)];
+    queuedAction = EnemyAction.none;
+    queuedFacing = EnemyFacing.down;
+
+    animations = await SpriteFactory.createEnemyAnimations(game.images);
+    
     current = EnemyStateFacing.fromStateFacing(enemyState, enemyFacing);
 
     final ticker = animationTickers?[current];
@@ -113,34 +59,54 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing> with HasGame
 
   @override
   void update(double dt) {
-    super.update(dt);
-
+    super.update(dt);    
     priority = (RenderPriority.enemy.value + position.y).toInt();
 
     if (enemyState == EnemyState.wakingup) return;
-
     if (enemyState == EnemyState.sleeping) {
       checkWakeUp();
-    }
-
-    if (!game.camera.canSee(this) && enemyState != EnemyState.sleeping) {
-      goToSleep();
       return;
     }
 
-    if (enemyState == EnemyState.attack) {
-      priority = priority + 10;
+    if (enemyState == EnemyState.dead) {
+      onDeath();
+      return;
+    }
+
+    if (enemyState == EnemyState.hurt) {
       final ticker = animationTickers?[current];
       if (ticker != null && ticker.done()) {
         enemyState = EnemyState.idle;
-        current = EnemyStateFacing.fromStateFacing(enemyState, enemyFacing);
+        updateVisualState();
       }
       return;
     }
 
-    if (enemyState == EnemyState.walk && isMoving) {
-      print('moving');
-      final Vector2 startPos = targetPosition - (getFacingVector(this) * 16);
+    if (!game.camera.canSee(this)) {
+      if (enemyState != EnemyState.sleeping) {
+        goToSleep();
+      }
+      return;
+    }
+
+    if (enemyState == EnemyState.attack) {
+      if (enemyFacing == EnemyFacing.left || enemyFacing == EnemyFacing.right) {
+        priority += 5;
+      }
+      final ticker = animationTickers?[current];      
+      if (ticker != null && ticker.currentIndex == 3 && !hasDealtDamage) {
+        hasDealtDamage = true;
+        game.player!.takeDamage();
+      }
+      if (ticker != null && ticker.done()) {
+        hasDealtDamage = false;
+        enemyState = EnemyState.idle;
+        updateVisualState();
+      }
+      return;
+    }
+
+    if (enemyState == EnemyState.walk && isMoving) {      
       movePercent += moveSpeed * dt;
 
       if (movePercent >= 1.0) {
@@ -150,6 +116,7 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing> with HasGame
         enemyState = EnemyState.idle;
         current = EnemyStateFacing.fromStateFacing(enemyState, enemyFacing);
       } else {
+        final Vector2 startPos = targetPosition - (getFacingVector(this) * 16);
         position.setFrom(startPos + (targetPosition - startPos) * movePercent);
       }
     }
@@ -164,7 +131,8 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing> with HasGame
 
     for (int ox = gx - 4; ox <= gx; ox++) {
       for (int oy = gy - 5; oy <= gy; oy++) {
-        if (ox < 0 || oy < 0 || ox >= floor.width || oy >= floor.height) continue;
+        if (ox < 0 || oy < 0 || ox >= floor.width || oy >= floor.height)
+          continue;
 
         final prop = floor.decorations.grid[ox][oy];
         if (prop != null) {
@@ -197,6 +165,8 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing> with HasGame
   }
 
   void goToSleep() {
+    isMoving = false;
+    position = targetPosition;
     enemyState = EnemyState.sleeping;
     current = EnemyStateFacing.fromStateFacing(enemyState, enemyFacing);
     final ticker = animationTickers?[current];
@@ -206,6 +176,23 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing> with HasGame
 
   void attack() {
     playAnimationOnce(EnemyState.idle);
+  }
+
+  void onDeath() {
+    enemyState = EnemyState.dead;
+    updateVisualState();
+    game.world.children.whereType<TurnManager>().firstOrNull?.updateEnemyList();
+  }
+
+  void takeDamage(int damage) {    
+    hp -= damage;
+    if (hp <= 0) {
+      enemyState = EnemyState.dead;
+    } else {
+      enemyState = EnemyState.hurt;
+    }
+    updateVisualState();
+    animationTickers?[current]?.reset();
   }
 
   void playAnimationOnce(EnemyState resultstate) {
@@ -222,20 +209,17 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing> with HasGame
     ticker?.onComplete = () {
       // print('switching to idle');
       enemyState = resultstate;
-      current = EnemyStateFacing.fromStateFacing(enemyState, enemyFacing);
+      updateVisualState();
       // print(current);
     };
   }
 
-  SpriteAnimation createReversingAnimation(SpriteSheet sheet, int row, int framecount, double steptime) {
-    final indices = List<int>.generate(framecount, (index) => index);
-    indices.addAll(List<int>.generate(framecount - 2, (index) => framecount - 2 - index));
-
-    return SpriteAnimation.spriteList(
-      indices.map((e) => sheet.getSprite(row, e)).toList(),
-      stepTime: steptime,
-      loop: true,
-    );
+  void updateVisualState() {
+    final newKey = EnemyStateFacing.fromStateFacing(enemyState, enemyFacing);
+    if (current != newKey) {
+      current = newKey;
+      animationTickers?[current]?.reset();
+    }
   }
 
   Vector2 getFacingVector(Enemy e) {

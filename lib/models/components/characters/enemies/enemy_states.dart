@@ -8,6 +8,13 @@ enum EnemyState {
   dead,
 }
 
+enum EnemyAction {
+  none,
+  attack,
+  advance,
+  wander,
+}
+
 enum EnemyFacing {
   left,
   right,

@@ -1,1 +1,7 @@
-enum GameState { playerTurn, playerAction, enemyDeciding, enemyAction, gameOver }
+enum GameState {
+  playerTurn,
+  playerAction,
+  enemyDeciding,
+  enemyAction,  
+  gameOver,
+}
