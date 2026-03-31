@@ -3,14 +3,15 @@ import 'dart:ui' show FilterQuality;
 
 import 'package:dungeoncrawler/bloc/dungeon_bloc/dungeon_bloc.dart';
 import 'package:dungeoncrawler/game/extensions.dart';
-import 'package:dungeoncrawler/game/game.dart';
+import 'package:dungeoncrawler/game/dungeoncrawl_game.dart';
 import 'package:dungeoncrawler/models/components/characters/enemies/enemy.dart';
+import 'package:dungeoncrawler/models/components/characters/enemies/enemy_stats.dart';
 import 'package:dungeoncrawler/models/components/characters/player/player.dart';
 import 'package:dungeoncrawler/models/components/environment/darkness.dart';
 import 'package:dungeoncrawler/models/components/environment/dungeon_floors.dart';
 import 'package:dungeoncrawler/models/components/environment/floor_tiles.dart';
 import 'package:dungeoncrawler/models/components/environment/lighting.dart';
-import 'package:dungeoncrawler/models/components/turnmanager.dart';
+import 'package:dungeoncrawler/game/turnmanager.dart';
 import 'package:dungeoncrawler/models/enums/priority.dart';
 import 'package:dungeoncrawler/models/components/environment/props.dart';
 import 'package:dungeoncrawler/models/components/environment/torches.dart';
@@ -299,6 +300,7 @@ class GenerateMap extends Component with HasGameReference<DungeonCrawl>, Keyboar
           enemies.add(
             Enemy(
               renderedState: state,
+              stats: EnemyStats.forFloor(state.dungeon.floors.indexOf(floor)),
               position: Vector2(
                 spawnX * 16.0,
                 spawnY * 16.0,

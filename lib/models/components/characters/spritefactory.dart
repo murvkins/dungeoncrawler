@@ -3,7 +3,6 @@ import 'package:dungeoncrawler/models/components/characters/player/player_states
 import 'package:flame/cache.dart';
 import 'package:flame/components.dart';
 import 'package:flame/sprite.dart';
-import 'package:flame/widgets.dart';
 
 class SpriteFactory {
   static Future<Map<PlayerStateFacing, SpriteAnimation>> createPlayerAnimations(

@@ -14,7 +14,6 @@ class Dungeon {
   }
 
   Dungeon addFloor() {
-    print('adding floor');
     return Dungeon(floors: [...floors, Floor.newFloor()]);
   }
 }
@@ -162,7 +161,6 @@ class Floor {
     final allgroups = findAllGroups(floor.rooms);
 
     if (allgroups.length > 1) {
-      print('re-doing floor');
       floor = Floor.newFloor();
     } else {
       return floor;

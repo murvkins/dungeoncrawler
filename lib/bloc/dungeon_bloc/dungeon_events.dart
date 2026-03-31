@@ -8,19 +8,36 @@ sealed class DungeonEvent extends Equatable {
 }
 
 final class GenerateNewMap extends DungeonEvent {
-  // const GenerateNewMap({required this.dungeon});
-
-  // final Dungeon dungeon;
-
-  // @override
-  // List<Object> get props => [dungeon];
 }
 
 final class AddFloor extends DungeonEvent {
-  // const AddFloor({required this.dungeon});
-
-  // final Dungeon dungeon;
-
-  // @override
-  // List<Object> get props => [dungeon];
 }
+
+final class GainXP extends DungeonEvent {
+  const GainXP({required this.amount});
+
+  final int amount;
+
+  @override
+  List<Object> get props => [amount];
+}
+
+final class TakeDamage extends DungeonEvent {
+  const TakeDamage({required this.amount});
+
+  final int amount;
+
+  @override
+  List<Object> get props => [amount];
+}
+
+final class Heal extends DungeonEvent {
+  const Heal({required this.amount});
+
+  final int amount;
+
+  @override
+  List<Object> get props => [amount];
+}
+
+final class ResetGame extends DungeonEvent {}

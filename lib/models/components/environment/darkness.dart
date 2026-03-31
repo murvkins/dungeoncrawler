@@ -1,4 +1,4 @@
-import 'package:dungeoncrawler/game/game.dart';
+import 'package:dungeoncrawler/game/dungeoncrawl_game.dart';
 import 'package:dungeoncrawler/models/components/environment/torches.dart';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';

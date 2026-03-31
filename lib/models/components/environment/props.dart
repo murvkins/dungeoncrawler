@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import 'package:dungeoncrawler/game/game.dart';
+import 'package:dungeoncrawler/game/dungeoncrawl_game.dart';
 import 'package:dungeoncrawler/models/enums/priority.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';

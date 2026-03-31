@@ -5,7 +5,8 @@ import 'package:dungeoncrawler/game/map.dart';
 import 'package:dungeoncrawler/models/components/environment/lighting.dart';
 import 'package:dungeoncrawler/models/components/characters/player/player.dart';
 import 'package:dungeoncrawler/models/components/environment/props.dart';
-import 'package:dungeoncrawler/models/components/turnmanager.dart';
+import 'package:dungeoncrawler/game/turnmanager.dart';
+import 'package:dungeoncrawler/models/enums/dungeonstatus.dart';
 import 'package:flame/camera.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
@@ -19,6 +20,7 @@ class DungeonCrawl extends FlameGame with HasKeyboardHandlerComponents {
 
   final DungeonBloc dungeonBloc;
   Player? player;
+  late final TurnManager turnManager;
 
   @override
   Future<void> onLoad() async {
@@ -44,7 +46,9 @@ class DungeonCrawl extends FlameGame with HasKeyboardHandlerComponents {
       ),
     );
 
-    world.add(TurnManager());
+    turnManager = TurnManager();
+
+    world.add(turnManager);
     dungeonBloc.add(GenerateNewMap());
   }
 
@@ -64,14 +68,23 @@ class DungeonCrawl extends FlameGame with HasKeyboardHandlerComponents {
     return KeyEventResult.ignored;
   }
 
+  @override
+  void update(double dt) {    
+    super.update(dt);
+    print(dungeonBloc.state.status);
+    if (dungeonBloc.state.status == DungeonStatus.gameover) {
+      if (!overlays.isActive('GameOver')) {
+        overlays.add('GameOver');        
+      }
+    }
+  }
+
   void spawnPlayer(DungeonState state) {
     player?.removeFromParent();
 
     final firstroom = state.dungeon.floors.last.rooms.first;
     final left = firstroom.x + 2;
-    // final right = firstroom.x + firstroom.width - 2;
     final top = firstroom.y + 4;
-    // final bottom = firstroom.y + firstroom.height - 2;
     final newplayer =
         Player(
             lightingConfig: LightingConfig(

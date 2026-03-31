@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:dungeoncrawler/bloc/dungeon_bloc/dungeon_bloc.dart';
-import 'package:dungeoncrawler/game/game.dart';
+import 'package:dungeoncrawler/game/dungeoncrawl_game.dart';
 import 'package:dungeoncrawler/models/components/characters/enemies/enemy.dart';
 import 'package:dungeoncrawler/models/components/characters/enemies/enemy_states.dart';
 import 'package:dungeoncrawler/models/components/characters/spritefactory.dart';
 import 'package:dungeoncrawler/models/components/environment/lighting.dart';
 import 'package:dungeoncrawler/models/components/characters/player/player_states.dart';
-import 'package:dungeoncrawler/models/components/turnmanager.dart';
+import 'package:dungeoncrawler/game/turnmanager.dart';
 import 'package:dungeoncrawler/models/enums/gamestate.dart';
 import 'package:dungeoncrawler/models/enums/priority.dart';
 import 'package:flame/components.dart';
@@ -32,13 +32,15 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
 
   Vector2 velocity = Vector2.zero();
 
-  PlayerState playerState = PlayerState.idle; 
+  PlayerState playerState = PlayerState.idle;
   PlayerFacing playerFacing = PlayerFacing.down;
-  
+
+  int lasthp = 10;
+
   @override
-  Future<void> onLoad() async {    
+  Future<void> onLoad() async {
     playerState = PlayerState.idle;
-    playerFacing = PlayerFacing.down;    
+    playerFacing = PlayerFacing.down;
 
     animations = await SpriteFactory.createPlayerAnimations(game.images);
 
@@ -51,8 +53,10 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
 
   @override
   void update(double dt) {
-    super.update(dt);    
-    lightingConfig.update(dt);    
+    super.update(dt);
+    lightingConfig.update(dt);
+    if (playerState == PlayerState.dead) return;
+    final currenthp = game.dungeonBloc.state.stats.hp;
 
     Vector2 playerFacingVector;
     priority = (RenderPriority.player.value + position.y).toInt() + 3;
@@ -72,31 +76,44 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
         break;
     }
 
-    if (playerState == PlayerState.attack) {
+    if (currenthp <= 0 && playerState != PlayerState.dead) {
+      playerState = PlayerState.dead;
+      updateVisualState();
+      return;
+    }
+
+    if (currenthp < lasthp && playerState != PlayerState.hurt) {
+      playerState = PlayerState.hurt;
+      updateVisualState();
+      lasthp = currenthp;
+    }
+
+    if (playerState == PlayerState.hurt) {
       final ticker = animationTickers?[current];
-      if (ticker != null && ticker.currentIndex == 3 && !hasDealtDamage) {
-        hasDealtDamage = true;
-        final target = position + (playerFacingVector * 16.0);
-        final enemy = game.world.children.whereType<Enemy>().firstWhere(
-          (e) => e.position == target && e.enemyState != EnemyState.dead,
-          orElse: () => null as dynamic,
-        );
-        enemy.takeDamage(1);        
-      }
-      if (ticker != null && !ticker.done()) {
-        return;
-      }
       if (ticker != null && ticker.done()) {
-        hasDealtDamage = false;
         playerState = PlayerState.idle;
         updateVisualState();
       }
       return;
     }
 
-    if (playerState == PlayerState.hurt) {
+    if (playerState == PlayerState.attack) {
       final ticker = animationTickers?[current];
+      if (ticker != null && ticker.currentIndex == 3 && !hasDealtDamage) {
+        game.turnManager.resetRestCounter();
+        hasDealtDamage = true;
+        final target = position + (playerFacingVector * 16.0);
+        final enemy = game.world.children.whereType<Enemy>().firstWhere(
+          (e) => e.position == target && e.enemyState != EnemyState.dead,
+          orElse: () => null as dynamic,
+        );
+        enemy.takeDamage(game.dungeonBloc.state.stats.attack);
+      }
+      if (ticker != null && !ticker.done()) {
+        return;
+      }
       if (ticker != null && ticker.done()) {
+        hasDealtDamage = false;
         playerState = PlayerState.idle;
         updateVisualState();
       }
@@ -130,11 +147,13 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
   @override
   bool onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
     pressedKeys.clear();
+    if (playerState == PlayerState.dead) true;
     pressedKeys.addAll(keysPressed);
     return true;
   }
 
   void _checkInput() {
+    if (playerState == PlayerState.dead) return;
     final turnmanager = game.world.children.whereType<TurnManager>().first;
     // print(turnmanager.state);
     if (turnmanager.state != GameState.playerTurn) return;
@@ -169,7 +188,7 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
     if (direction != Vector2.zero()) {
       final potentialTarget = position + (direction * 16);
       if (isEnemyAt(potentialTarget)) {
-        playerState = PlayerState.attack;        
+        playerState = PlayerState.attack;
         updateVisualState();
         return;
       }
@@ -224,15 +243,10 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
     return false;
   }
 
-  void takeDamage() {
-    playerState = PlayerState.hurt;
-    updateVisualState();
-    animationTickers?[current]?.reset();
-  }
-
   PlayerFacing? getPressedFacing() {
     if (pressedKeys.contains(LogicalKeyboardKey.keyA)) return PlayerFacing.left;
-    if (pressedKeys.contains(LogicalKeyboardKey.keyD)) return PlayerFacing.right;
+    if (pressedKeys.contains(LogicalKeyboardKey.keyD))
+      return PlayerFacing.right;
     if (pressedKeys.contains(LogicalKeyboardKey.keyW)) return PlayerFacing.up;
     if (pressedKeys.contains(LogicalKeyboardKey.keyS)) return PlayerFacing.down;
     return null;

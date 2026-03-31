@@ -1,20 +1,23 @@
 import 'dart:async';
 
 import 'package:dungeoncrawler/bloc/dungeon_bloc/dungeon_bloc.dart';
-import 'package:dungeoncrawler/game/game.dart';
+import 'package:dungeoncrawler/game/dungeoncrawl_game.dart';
 import 'package:dungeoncrawler/models/components/characters/enemies/enemy_states.dart';
+import 'package:dungeoncrawler/models/components/characters/enemies/enemy_stats.dart';
 import 'package:dungeoncrawler/models/components/characters/spritefactory.dart';
 import 'package:dungeoncrawler/models/components/environment/floor_tiles.dart';
-import 'package:dungeoncrawler/models/components/turnmanager.dart';
+import 'package:dungeoncrawler/game/turnmanager.dart';
 import 'package:dungeoncrawler/models/enums/priority.dart';
 import 'package:flame/components.dart';
 
 class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
     with HasGameReference<DungeonCrawl> {
+  final EnemyStats stats;
   final DungeonState renderedState;
 
   Enemy({
     required this.renderedState,
+    required this.stats,
     required Vector2 position,
   }) : super(
          position: position,
@@ -36,8 +39,6 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
   late EnemyAction queuedAction;
   late EnemyFacing queuedFacing;
 
-  int hp = 4;
-
   @override
   Future<void> onLoad() async {
     enemyState = EnemyState.sleeping;
@@ -46,7 +47,7 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
     queuedFacing = EnemyFacing.down;
 
     animations = await SpriteFactory.createEnemyAnimations(game.images);
-    
+
     current = EnemyStateFacing.fromStateFacing(enemyState, enemyFacing);
 
     final ticker = animationTickers?[current];
@@ -59,7 +60,7 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
 
   @override
   void update(double dt) {
-    super.update(dt);    
+    super.update(dt);
     priority = (RenderPriority.enemy.value + position.y).toInt();
 
     if (enemyState == EnemyState.wakingup) return;
@@ -93,10 +94,11 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
       if (enemyFacing == EnemyFacing.left || enemyFacing == EnemyFacing.right) {
         priority += 5;
       }
-      final ticker = animationTickers?[current];      
+      final ticker = animationTickers?[current];
       if (ticker != null && ticker.currentIndex == 3 && !hasDealtDamage) {
+        game.turnManager.resetRestCounter();
         hasDealtDamage = true;
-        game.player!.takeDamage();
+        game.dungeonBloc.add(TakeDamage(amount: stats.attack));
       }
       if (ticker != null && ticker.done()) {
         hasDealtDamage = false;
@@ -106,7 +108,7 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
       return;
     }
 
-    if (enemyState == EnemyState.walk && isMoving) {      
+    if (enemyState == EnemyState.walk && isMoving) {
       movePercent += moveSpeed * dt;
 
       if (movePercent >= 1.0) {
@@ -131,8 +133,9 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
 
     for (int ox = gx - 4; ox <= gx; ox++) {
       for (int oy = gy - 5; oy <= gy; oy++) {
-        if (ox < 0 || oy < 0 || ox >= floor.width || oy >= floor.height)
+        if (ox < 0 || oy < 0 || ox >= floor.width || oy >= floor.height) {
           continue;
+        }
 
         final prop = floor.decorations.grid[ox][oy];
         if (prop != null) {
@@ -160,8 +163,9 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
   }
 
   void wakeUp() {
-    enemyState = EnemyState.wakingup;
+    enemyState = EnemyState.wakingup;    
     playAnimationOnce(EnemyState.idle);
+    game.world.children.whereType<TurnManager>().firstOrNull?.updateEnemyList();
   }
 
   void goToSleep() {
@@ -174,20 +178,17 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
     ticker?.paused = true;
   }
 
-  void attack() {
-    playAnimationOnce(EnemyState.idle);
-  }
-
   void onDeath() {
     enemyState = EnemyState.dead;
     updateVisualState();
     game.world.children.whereType<TurnManager>().firstOrNull?.updateEnemyList();
   }
 
-  void takeDamage(int damage) {    
-    hp -= damage;
-    if (hp <= 0) {
+  void takeDamage(int damage) {
+    stats.hp -= damage;
+    if (stats.hp <= 0) {
       enemyState = EnemyState.dead;
+      game.dungeonBloc.add(GainXP(amount: stats.xpreward));
     } else {
       enemyState = EnemyState.hurt;
     }
@@ -196,8 +197,6 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
   }
 
   void playAnimationOnce(EnemyState resultstate) {
-    // print('playing animation once with result state: $resultstate');
-    // print('currentstate: ${current?.enemyState}');
     current = EnemyStateFacing.fromStateFacing(enemyState, enemyFacing);
     final ticker = animationTickers?[current];
 
@@ -207,10 +206,8 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
     }
 
     ticker?.onComplete = () {
-      // print('switching to idle');
       enemyState = resultstate;
       updateVisualState();
-      // print(current);
     };
   }
 

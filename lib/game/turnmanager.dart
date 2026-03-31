@@ -1,10 +1,12 @@
 import 'dart:async';
 
-import 'package:dungeoncrawler/game/game.dart';
+import 'package:dungeoncrawler/bloc/dungeon_bloc/dungeon_bloc.dart';
+import 'package:dungeoncrawler/game/dungeoncrawl_game.dart';
 import 'package:dungeoncrawler/models/components/characters/enemies/enemy.dart';
 import 'package:dungeoncrawler/models/components/characters/enemies/enemy_states.dart';
 import 'package:dungeoncrawler/models/components/characters/player/player_states.dart';
 import 'package:dungeoncrawler/models/components/environment/floor_tiles.dart';
+import 'package:dungeoncrawler/models/enums/dungeonstatus.dart';
 import 'package:dungeoncrawler/models/enums/gamestate.dart';
 import 'package:flame/components.dart';
 
@@ -14,6 +16,9 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
   List<Enemy> enemyList = [];
   bool enemyDecidedRan = false;
   bool decidingFinished = false;
+
+  int restcounter = 0;
+  int restcounterthreshold = 20;
 
   @override
   void onMount() {
@@ -30,15 +35,19 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
     if (game.player == null) return;
 
     final player = game.player;
+    
+    if (game.dungeonBloc.state.status == DungeonStatus.gameover) {
+      state = GameState.gameOver;
+    }
 
     final ticker = player!.animationTickers?[player.current];
 
-    // print(state);
     switch (state) {
       case GameState.playerTurn:
         if (player.isMoving ||
             player.playerState == PlayerState.attack ||
             player.playerState == PlayerState.walk) {
+          restcounter++;
           state = GameState.playerAction;
           enemyDecidedRan = false;
           decidingFinished = false;
@@ -48,11 +57,16 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
         if (!enemyDecidedRan) {
           enemyDecidedRan = true;
           enemyDeciding(player.targetPosition);
-        }
+          if (game.dungeonBloc.state.stats.hp <
+                  game.dungeonBloc.state.stats.maxhp &&
+              restcounter >= restcounterthreshold) {
+            game.dungeonBloc.add(Heal(amount: 1));
+          }
+        }        
 
         bool isAttacking = player.playerState == PlayerState.attack;
         bool isHurt = player.playerState == PlayerState.hurt;
-        print(player.playerState);
+
         if ((isAttacking || isHurt) && (ticker == null || !ticker.done())) {
           return;
         }
@@ -104,28 +118,17 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
         .where(
           (e) =>
               e.enemyState != EnemyState.dead &&
-              e.enemyState != EnemyState.sleeping,
+              e.enemyState != EnemyState.sleeping &&
+              e.enemyState != EnemyState.wakingup,
         )
         .toList();
   }
 
   void enemyDeciding(Vector2 playerDestination) {
-    enemyList = game.world.children
-        .whereType<Enemy>()
-        .where(
-          (e) =>
-              e.enemyState != EnemyState.dead &&
-              e.enemyState != EnemyState.sleeping,
-        )
-        .toList();
-
-    // final activeenemies = enemyList.where(
-    //   (element) => element.enemyState != EnemyState.sleeping,
-    // );
+    updateEnemyList();
 
     if (enemyList.isEmpty) {
       decidingFinished = true;
-      state = GameState.playerTurn;
       return;
     }
 
@@ -208,11 +211,11 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
       alt = diff.y > 0 ? EnemyFacing.down : EnemyFacing.up;
     } else {
       init = diff.y > 0 ? EnemyFacing.down : EnemyFacing.up;
-      alt = diff.x > 0 ? EnemyFacing.right : EnemyFacing.left;      
+      alt = diff.x > 0 ? EnemyFacing.right : EnemyFacing.left;
     }
-    e.enemyFacing = init;    
+    e.enemyFacing = init;
     enemyTryToMove(e);
-    
+
     if (e.enemyState == EnemyState.idle) {
       e.enemyFacing = alt;
       enemyTryToMove(e);
@@ -235,6 +238,15 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
     } else {
       e.enemyState = EnemyState.idle;
     }
+  }
+
+  void resetRestCounter() {
+    restcounter = 0;
+  }
+
+  void resetGame() {
+    state = GameState.playerTurn;
+    restcounter = 0;
   }
 
   Vector2 getFacingVector(Enemy e) {
