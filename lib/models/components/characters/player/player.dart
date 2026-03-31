@@ -164,7 +164,8 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
     Vector2 direction = Vector2.zero();
 
     if (pressedKeys.contains(LogicalKeyboardKey.space)) {
-      final turnmanager = game.world.children.whereType<TurnManager>().first;
+      final turnmanager = game.world.children.whereType<TurnManager>().first;      
+      turnmanager.restcounter++;
       turnmanager.enemyDecidedRan = false;
       turnmanager.decidingFinished = false;
       turnmanager.state = GameState.playerAction;
