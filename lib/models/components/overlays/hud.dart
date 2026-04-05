@@ -1,5 +1,6 @@
 import 'package:dungeoncrawler/bloc/dungeon_bloc/dungeon_bloc.dart';
 import 'package:dungeoncrawler/game/dungeoncrawl_game.dart';
+import 'package:dungeoncrawler/models/components/overlays/exitindicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -13,35 +14,63 @@ class HudOverlay extends StatelessWidget {
       builder: (context, state) {
         final stats = state.stats;
 
-        return Padding(
-          padding: const EdgeInsets.only(top: 8.0, left: 4.0),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey, width: 1),
-              borderRadius: BorderRadius.circular(5),
-              color: Colors.white12,
+        return Row(
+          mainAxisSize: MainAxisSize.max,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0, left: 4.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey, width: 1),
+                      borderRadius: BorderRadius.circular(5),
+                      color: Colors.white12,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ProgressBar(
+                            'HP:   ${stats.hp} / ${stats.maxhp}',
+                            Colors.red.shade700,
+                            stats.hpPercent,
+                          ),
+                          const SizedBox(height: 5),
+                          ProgressBar(
+                            'Level  ${stats.level}:   ${stats.xp} / ${stats.xprequired}',
+                            Colors.blue.shade700,
+                            stats.xpPercent,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 8, top: 12),
+                  child: ExitIndicator(game: game),
+                ),
+              ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ProgressBar(
-                    'HP:   ${stats.hp} / ${stats.maxhp}',
-                    Colors.red.shade700,
-                    stats.hpPercent,
-                  ),
-                  const SizedBox(height: 5),
-                  ProgressBar(
-                    'Level  ${stats.level}:   ${stats.xp} / ${stats.xprequired}',
-                    Colors.blue.shade700,
-                    stats.xpPercent,
-                  ),
-                ],
+            Padding(
+              padding: const EdgeInsetsGeometry.only(top: 2, right: 4.0),
+              child: Text(
+                'Floor:  ${game.dungeonBloc.state.dungeon.floors.length}',
+                style: TextStyle(
+                  color: Colors.grey.shade100,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
+          ],
         );
       },
     );

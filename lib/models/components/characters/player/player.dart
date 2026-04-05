@@ -8,13 +8,15 @@ import 'package:dungeoncrawler/models/components/characters/spritefactory.dart';
 import 'package:dungeoncrawler/models/components/environment/lighting.dart';
 import 'package:dungeoncrawler/models/components/characters/player/player_states.dart';
 import 'package:dungeoncrawler/game/turnmanager.dart';
+import 'package:dungeoncrawler/models/components/environment/props.dart';
 import 'package:dungeoncrawler/models/enums/gamestate.dart';
 import 'package:dungeoncrawler/models/enums/priority.dart';
+import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/services.dart';
 
 class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
-    with HasGameReference<DungeonCrawl>, KeyboardHandler {
+    with HasGameReference<DungeonCrawl>, KeyboardHandler, CollisionCallbacks {
   final LightingConfig lightingConfig;
   final DungeonState renderedState;
 
@@ -28,6 +30,7 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
   Vector2 targetPosition = Vector2.zero();
   bool isMoving = false;
   bool hasDealtDamage = false;
+
   final Set<LogicalKeyboardKey> pressedKeys = {};
 
   Vector2 velocity = Vector2.zero();
@@ -49,6 +52,13 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
     size = Vector2.all(64.0);
     anchor = Anchor(0.375, 0.5);
     targetPosition = position.clone();
+    add(
+      RectangleHitbox(
+        size: Vector2.all(16),
+        position: size / 2,
+        anchor: Anchor.center,
+      ),
+    );
   }
 
   @override
@@ -148,6 +158,19 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
   bool onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
     pressedKeys.clear();
     if (playerState == PlayerState.dead) true;
+
+    if (event is KeyDownEvent &&
+        keysPressed.contains(LogicalKeyboardKey.keyE)) {
+      final nearbyProp = game.world.children
+          .query<Prop>()
+          .where((e) => e.interactable && collidingWith(e))
+          .firstOrNull;
+      if (nearbyProp != null) {
+        game.dungeonBloc.add(AddFloor());
+        return true;
+      }
+    }
+    
     pressedKeys.addAll(keysPressed);
     return true;
   }
@@ -164,11 +187,13 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
     Vector2 direction = Vector2.zero();
 
     if (pressedKeys.contains(LogicalKeyboardKey.space)) {
-      final turnmanager = game.world.children.whereType<TurnManager>().first;      
+      final turnmanager = game.world.children.whereType<TurnManager>().first;
       turnmanager.restcounter++;
       turnmanager.enemyDecidedRan = false;
       turnmanager.decidingFinished = false;
       turnmanager.state = GameState.playerAction;
+      playerState = PlayerState.idle;
+      updateVisualState();
       return;
     }
 
@@ -194,7 +219,7 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
         return;
       }
 
-      if (isColliding(potentialTarget)) {
+      if (_isColliding(potentialTarget)) {
         playerState = PlayerState.idle;
         updateVisualState();
         return;
@@ -207,7 +232,7 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
     }
   }
 
-  bool isColliding(Vector2 pos) {
+  bool _isColliding(Vector2 pos) {
     final floor = renderedState.dungeon.floors.last;
     final int gx = (pos.x / 16).floor();
     final int gy = (pos.y / 16).floor();
@@ -235,7 +260,7 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
   }
 
   bool isEnemyAt(Vector2 pos) {
-    final floor = renderedState.dungeon.floors.last;
+    final floor = game.dungeonBloc.state.dungeon.floors.last;
 
     for (final e in floor.enemies) {
       if (e.enemyState == EnemyState.dead) continue;
@@ -246,8 +271,9 @@ class Player extends SpriteAnimationGroupComponent<PlayerStateFacing>
 
   PlayerFacing? getPressedFacing() {
     if (pressedKeys.contains(LogicalKeyboardKey.keyA)) return PlayerFacing.left;
-    if (pressedKeys.contains(LogicalKeyboardKey.keyD))
+    if (pressedKeys.contains(LogicalKeyboardKey.keyD)) {
       return PlayerFacing.right;
+    }
     if (pressedKeys.contains(LogicalKeyboardKey.keyW)) return PlayerFacing.up;
     if (pressedKeys.contains(LogicalKeyboardKey.keyS)) return PlayerFacing.down;
     return null;

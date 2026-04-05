@@ -13,6 +13,15 @@ final class GenerateNewMap extends DungeonEvent {
 final class AddFloor extends DungeonEvent {
 }
 
+final class SpawnEnemies extends DungeonEvent {
+  const SpawnEnemies({required this.enemies});
+
+  final List<Enemy> enemies;
+
+  @override
+  List<Object> get props => [enemies];
+}
+
 final class GainXP extends DungeonEvent {
   const GainXP({required this.amount});
 

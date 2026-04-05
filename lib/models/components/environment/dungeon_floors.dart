@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:dungeoncrawler/models/components/characters/enemies/enemy.dart';
 import 'package:dungeoncrawler/models/components/environment/props.dart';
 import 'package:dungeoncrawler/models/components/environment/floor_tiles.dart';
+import 'package:flame/components.dart';
 
 class Dungeon {
   final List<Floor> floors;
@@ -27,7 +28,7 @@ class Floor {
   List<Room> rooms;
   List<Corridor> corridors;
   List<Enemy> enemies;
-  // FloorTileLayer? interactables; //chests, items, loot
+  Vector2? exitPosition;
   // FloorTileLayer characters; //player and enemies
 
   Floor({
@@ -39,6 +40,7 @@ class Floor {
     required this.decorations,
     required this.corridors,
     required this.enemies,
+    this.exitPosition,
     // this.interactables,
     // required this.characters,
   });
@@ -51,7 +53,11 @@ class Floor {
     Floor floor = Floor(
       width: floorwidth,
       height: floorheight,
-      walls: FloorTileLayer.fillLayer(TileType.blank_tile, floorwidth, floorheight),
+      walls: FloorTileLayer.fillLayer(
+        TileType.blank_tile,
+        floorwidth,
+        floorheight,
+      ),
       floortiles: FloorTileLayer.fillLayer(null, floorwidth, floorheight),
       decorations: DecorationTileLayer.fillLayer(null, floorwidth, floorheight),
       rooms: [],
@@ -63,8 +69,10 @@ class Floor {
     int maxretries = 50;
 
     for (int i = 0; i < maxRooms; i++) {
-      final roomwidth = rng.nextInt(maxRoomSize - minRoomSize + 1) + minRoomSize;
-      final roomheight = rng.nextInt(maxRoomSize - minRoomSize + 1) + minRoomSize;
+      final roomwidth =
+          rng.nextInt(maxRoomSize - minRoomSize + 1) + minRoomSize;
+      final roomheight =
+          rng.nextInt(maxRoomSize - minRoomSize + 1) + minRoomSize;
 
       final widthwithwalls = roomwidth + 2;
       final heightwithwalls = roomheight + 4;
@@ -72,7 +80,13 @@ class Floor {
       final rx = rng.nextInt(floorwidth - widthwithwalls - 1) + 1;
       final ry = rng.nextInt(floorheight - heightwithwalls - 1) + 1;
 
-      final newroom = Room(x: rx, y: ry, width: widthwithwalls, height: heightwithwalls, connections: []);
+      final newroom = Room(
+        x: rx,
+        y: ry,
+        width: widthwithwalls,
+        height: heightwithwalls,
+        connections: [],
+      );
       bool overlaps = floor.rooms.any((room) => newroom.intersects(room));
       if (overlaps) {
         retries++;
@@ -100,20 +114,24 @@ class Floor {
               floor.walls.grid[worldX][worldY] = roomTopWallTop[index];
               floor.walls.grid[worldX][worldY + 1] = roomTopWallMid[index];
               floor.walls.grid[worldX][worldY + 2] = roomTopWallBottom[index];
-              floor.floortiles.grid[worldX][worldY + 2] = floor_tiles[rng.nextInt(floor_tiles.length)];
+              floor.floortiles.grid[worldX][worldY + 2] =
+                  floor_tiles[rng.nextInt(floor_tiles.length)];
               if (x == widthwithwalls - 1) y += 2;
               continue;
             case int val when val > 2 && val < heightwithwalls - 1:
               //side walls
               if (x == 0) {
                 floor.walls.grid[worldX][worldY] = TileType.room_leftWall;
-                floor.floortiles.grid[worldX][worldY] = floor_tiles[rng.nextInt(floor_tiles.length)];
+                floor.floortiles.grid[worldX][worldY] =
+                    floor_tiles[rng.nextInt(floor_tiles.length)];
               } else if (x == widthwithwalls - 1) {
                 floor.walls.grid[worldX][worldY] = TileType.room_rightWall;
-                floor.floortiles.grid[worldX][worldY] = floor_tiles[rng.nextInt(floor_tiles.length)];
+                floor.floortiles.grid[worldX][worldY] =
+                    floor_tiles[rng.nextInt(floor_tiles.length)];
               } else {
                 floor.walls.grid[worldX][worldY] = null;
-                floor.floortiles.grid[worldX][worldY] = floor_tiles[rng.nextInt(floor_tiles.length)];
+                floor.floortiles.grid[worldX][worldY] =
+                    floor_tiles[rng.nextInt(floor_tiles.length)];
               }
               continue;
             default:
@@ -124,15 +142,21 @@ class Floor {
                   ? 2
                   : 1;
               floor.walls.grid[worldX][worldY] = roomBottomWall[index];
-              floor.floortiles.grid[worldX][worldY] = floor_tiles[rng.nextInt(floor_tiles.length)];
+              floor.floortiles.grid[worldX][worldY] =
+                  floor_tiles[rng.nextInt(floor_tiles.length)];
           }
         }
       }
 
       floor.decorations.grid[newroom.x + 1][newroom.y] = Props.cornertorch;
-      floor.decorations.grid[newroom.x + newroom.width - 3][newroom.y] = Props.cornertorch;
-      floor.decorations.grid[newroom.x + 1][newroom.y + newroom.height - 2] = Props.cornertorch;
-      floor.decorations.grid[newroom.x + newroom.width - 3][newroom.y + newroom.height - 2] = Props.cornertorch;
+      floor.decorations.grid[newroom.x + newroom.width - 3][newroom.y] =
+          Props.cornertorch;
+      floor.decorations.grid[newroom.x + 1][newroom.y + newroom.height - 2] =
+          Props.cornertorch;
+      floor.decorations.grid[newroom.x + newroom.width - 3][newroom.y +
+              newroom.height -
+              2] =
+          Props.cornertorch;
 
       floor.rooms.add(newroom);
     }
@@ -146,21 +170,33 @@ class Floor {
 
         final other = floor.rooms[nr];
 
-        if (!currentroom.connections!.contains(nr) && !other.connections!.contains(r)) {
-          if (connectRooms(floor, floor.rooms, currentroom, other, corridorwidth)) {
-            currentroom.connections!.add(floor.rooms.indexWhere((element) => element == other));
-            other.connections!.add(floor.rooms.indexWhere((element) => element == currentroom));
+        if (!currentroom.connections!.contains(nr) &&
+            !other.connections!.contains(r)) {
+          if (connectRooms(
+            floor,
+            floor.rooms,
+            currentroom,
+            other,
+            corridorwidth,
+          )) {
+            currentroom.connections!.add(
+              floor.rooms.indexWhere((element) => element == other),
+            );
+            other.connections!.add(
+              floor.rooms.indexWhere((element) => element == currentroom),
+            );
             nr = floor.rooms.length;
           }
         }
       }
     }
 
+    placeExit(floor);
     placeProps(floor);
 
     final allgroups = findAllGroups(floor.rooms);
 
-    if (allgroups.length > 1) {
+    if (allgroups.length > 1) {      
       floor = Floor.newFloor();
     } else {
       return floor;
@@ -188,7 +224,13 @@ bool checkYRangesOverlap(Room a, Room b) {
   return max(aMin, bMin) < min(aMax, bMax);
 }
 
-bool hallwayIntersectsOtherRoom(Floor floor, List<Room> rooms, int r, int nr, Rectangle hallway) {
+bool hallwayIntersectsOtherRoom(
+  Floor floor,
+  List<Room> rooms,
+  int r,
+  int nr,
+  Rectangle hallway,
+) {
   for (int cr = 0; cr < floor.rooms.length; cr++) {
     if (cr == r || nr == r) continue;
     Room other = floor.rooms[cr];
@@ -219,7 +261,11 @@ bool canPlaceHorizontalHallway(
         return false;
       }
 
-      if (floor.walls.grid[x][checkY] != TileType.blank_tile && !a.belongsToRoom(x, checkY) && !b.belongsToRoom(x, checkY)) return false;
+      if (floor.walls.grid[x][checkY] != TileType.blank_tile &&
+          !a.belongsToRoom(x, checkY) &&
+          !b.belongsToRoom(x, checkY)) {
+        return false;
+      }
     }
   }
   return true;
@@ -247,7 +293,11 @@ bool canPlaceVerticalHallway(
         return false;
       }
 
-      if (floor.walls.grid[checkX][y] != TileType.blank_tile && !a.belongsToRoom(checkX, y) && !b.belongsToRoom(checkX, y)) return false;
+      if (floor.walls.grid[checkX][y] != TileType.blank_tile &&
+          !a.belongsToRoom(checkX, y) &&
+          !b.belongsToRoom(checkX, y)) {
+        return false;
+      }
     }
   }
   return true;
@@ -279,10 +329,12 @@ void placeHorizontalHallway(
         floor.walls.grid[x][y - half - 3] = hallTopWallTop[1];
         floor.walls.grid[x][y - half - 2] = hallTopWallMid[1];
         floor.walls.grid[x][y - half - 1] = hallTopWallBottom[1];
-        floor.floortiles.grid[x][y - half - 1] = floor_tiles[rng.nextInt(floor_tiles.length)];
+        floor.floortiles.grid[x][y - half - 1] =
+            floor_tiles[rng.nextInt(floor_tiles.length)];
         for (int w = -half; w <= half; w++) {
           floor.walls.grid[x][y + w] = null;
-          floor.floortiles.grid[x][y + w] = floor_tiles[rng.nextInt(floor_tiles.length)];
+          floor.floortiles.grid[x][y + w] =
+              floor_tiles[rng.nextInt(floor_tiles.length)];
         }
         floor.walls.grid[x][y + half + 1] = hallBottomWall[1];
         break;
@@ -290,29 +342,39 @@ void placeHorizontalHallway(
         torchstart = x - start;
         if (roomTopWallMid.contains(floor.walls.grid[x][y - half - 3])) {
           //place top corner piece with wall
-          floor.walls.grid[x][y - half - 3] = TileType.hall_topWallTopLeft_fullwall;
-        } else if (roomTopWallBottom.contains(floor.walls.grid[x][y - half - 3])) {
+          floor.walls.grid[x][y - half - 3] =
+              TileType.hall_topWallTopLeft_fullwall;
+        } else if (roomTopWallBottom.contains(
+          floor.walls.grid[x][y - half - 3],
+        )) {
           //place corner piece with wall
-          floor.walls.grid[x][y - half - 3] = TileType.hall_topWallTopLeft_cornerwall;
+          floor.walls.grid[x][y - half - 3] =
+              TileType.hall_topWallTopLeft_cornerwall;
         } else {
           floor.walls.grid[x][y - half - 3] = hallTopWallTop[0];
         }
 
         if (roomTopWallMid.contains(floor.walls.grid[x][y - half - 2])) {
           //place top corner piece with wall
-          floor.walls.grid[x][y - half - 2] = TileType.hall_topWallTopLeft_cornerwall;
-        } else if (roomTopWallBottom.contains(floor.walls.grid[x][y - half - 2])) {
+          floor.walls.grid[x][y - half - 2] =
+              TileType.hall_topWallTopLeft_cornerwall;
+        } else if (roomTopWallBottom.contains(
+          floor.walls.grid[x][y - half - 2],
+        )) {
           //place corner piece with wall
-          floor.walls.grid[x][y - half - 2] = TileType.hall_topWallMidLeft_cornerwall;
+          floor.walls.grid[x][y - half - 2] =
+              TileType.hall_topWallMidLeft_cornerwall;
         } else {
           floor.walls.grid[x][y - half - 2] = hallTopWallMid[0];
         }
 
         floor.walls.grid[x][y - half - 1] = hallTopWallBottom[0];
-        floor.floortiles.grid[x][y - half - 1] = floor_tiles[rng.nextInt(floor_tiles.length)];
+        floor.floortiles.grid[x][y - half - 1] =
+            floor_tiles[rng.nextInt(floor_tiles.length)];
         for (int w = -half; w <= half; w++) {
           floor.walls.grid[x][y + w] = null;
-          floor.floortiles.grid[x][y + w] = floor_tiles[rng.nextInt(floor_tiles.length)];
+          floor.floortiles.grid[x][y + w] =
+              floor_tiles[rng.nextInt(floor_tiles.length)];
         }
         floor.walls.grid[x][y + half + 1] = hallBottomWall[0];
         break;
@@ -320,20 +382,28 @@ void placeHorizontalHallway(
         torchstart = 0;
         if (roomTopWallMid.contains(floor.walls.grid[x][y - half - 3])) {
           //place top corner piece with wall
-          floor.walls.grid[x][y - half - 3] = TileType.hall_topWallTopRight_fullwall;
-        } else if (roomTopWallBottom.contains(floor.walls.grid[x][y - half - 3])) {
+          floor.walls.grid[x][y - half - 3] =
+              TileType.hall_topWallTopRight_fullwall;
+        } else if (roomTopWallBottom.contains(
+          floor.walls.grid[x][y - half - 3],
+        )) {
           //place corner piece with wall
-          floor.walls.grid[x][y - half - 3] = TileType.hall_topWallTopRight_cornerwall;
+          floor.walls.grid[x][y - half - 3] =
+              TileType.hall_topWallTopRight_cornerwall;
         } else {
           floor.walls.grid[x][y - half - 3] = hallTopWallTop[2];
         }
 
         if (roomTopWallMid.contains(floor.walls.grid[x][y - half - 2])) {
           //place top corner piece with wall
-          floor.walls.grid[x][y - half - 2] = TileType.hall_topWallTopRight_cornerwall;
-        } else if (roomTopWallBottom.contains(floor.walls.grid[x][y - half - 2])) {
+          floor.walls.grid[x][y - half - 2] =
+              TileType.hall_topWallTopRight_cornerwall;
+        } else if (roomTopWallBottom.contains(
+          floor.walls.grid[x][y - half - 2],
+        )) {
           //place corner piece with wall
-          floor.walls.grid[x][y - half - 2] = TileType.hall_topWallMidRight_cornerwall;
+          floor.walls.grid[x][y - half - 2] =
+              TileType.hall_topWallMidRight_cornerwall;
         } else {
           floor.walls.grid[x][y - half - 2] = hallTopWallMid[2];
         }
@@ -341,14 +411,17 @@ void placeHorizontalHallway(
         floor.walls.grid[x][y - half - 1] = hallTopWallBottom[2];
         for (int w = -half; w <= half; w++) {
           floor.walls.grid[x][y + w] = null;
-          floor.floortiles.grid[x][y + w] = floor_tiles[rng.nextInt(floor_tiles.length)];
+          floor.floortiles.grid[x][y + w] =
+              floor_tiles[rng.nextInt(floor_tiles.length)];
         }
         floor.walls.grid[x][y + half + 1] = hallBottomWall[2];
         break;
       default:
         break;
     }
-    if (((x - start - torchstart) == 0 || (x - start - torchstart) % torchspacing == 0) && torchstart != 0) {
+    if (((x - start - torchstart) == 0 ||
+            (x - start - torchstart) % torchspacing == 0) &&
+        torchstart != 0) {
       floor.decorations.grid[x][y + (torchside ? -3 : 0)] = Props.torch;
       torchside = !torchside;
     }
@@ -379,12 +452,15 @@ void placeVerticalHallway(
       case TileType.blank_tile:
         if (y == start && torchstart == 0) torchstart = y;
         floor.walls.grid[x - half - 1][y] = TileType.room_leftWall;
-        floor.floortiles.grid[x - half - 1][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+        floor.floortiles.grid[x - half - 1][y] =
+            floor_tiles[rng.nextInt(floor_tiles.length)];
         for (int w = -half; w <= half; w++) {
           floor.walls.grid[x + w][y] = null;
-          floor.floortiles.grid[x + w][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+          floor.floortiles.grid[x + w][y] =
+              floor_tiles[rng.nextInt(floor_tiles.length)];
         }
-        floor.floortiles.grid[x + half + 1][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+        floor.floortiles.grid[x + half + 1][y] =
+            floor_tiles[rng.nextInt(floor_tiles.length)];
         floor.walls.grid[x + half + 1][y] = TileType.room_rightWall;
         break;
       case TileType.room_bottomWallMid:
@@ -392,45 +468,57 @@ void placeVerticalHallway(
         floor.walls.grid[x - half - 1][y] = hallBottomWall[2];
         for (int w = -half; w <= half; w++) {
           floor.walls.grid[x + w][y] = null;
-          floor.floortiles.grid[x + w][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+          floor.floortiles.grid[x + w][y] =
+              floor_tiles[rng.nextInt(floor_tiles.length)];
         }
-        floor.floortiles.grid[x + half + 1][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+        floor.floortiles.grid[x + half + 1][y] =
+            floor_tiles[rng.nextInt(floor_tiles.length)];
         floor.walls.grid[x + half + 1][y] = hallBottomWall[0];
         break;
       case TileType val when roomTopWallTop.contains(val):
         torchstart = 0;
         floor.walls.grid[x - half - 1][y] = hallTopWallTop[2];
-        floor.floortiles.grid[x - half - 1][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+        floor.floortiles.grid[x - half - 1][y] =
+            floor_tiles[rng.nextInt(floor_tiles.length)];
         for (int w = -half; w <= half; w++) {
           floor.walls.grid[x + w][y] = null;
-          floor.floortiles.grid[x + w][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+          floor.floortiles.grid[x + w][y] =
+              floor_tiles[rng.nextInt(floor_tiles.length)];
         }
-        floor.floortiles.grid[x + half + 1][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+        floor.floortiles.grid[x + half + 1][y] =
+            floor_tiles[rng.nextInt(floor_tiles.length)];
         floor.walls.grid[x + half + 1][y] = hallTopWallTop[0];
         break;
       case TileType val when roomTopWallMid.contains(val):
         floor.walls.grid[x - half - 1][y] = hallTopWallMid[2];
-        floor.floortiles.grid[x - half - 1][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+        floor.floortiles.grid[x - half - 1][y] =
+            floor_tiles[rng.nextInt(floor_tiles.length)];
         for (int w = -half; w <= half; w++) {
           floor.walls.grid[x + w][y] = null;
-          floor.floortiles.grid[x + w][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+          floor.floortiles.grid[x + w][y] =
+              floor_tiles[rng.nextInt(floor_tiles.length)];
         }
-        floor.floortiles.grid[x + half + 1][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+        floor.floortiles.grid[x + half + 1][y] =
+            floor_tiles[rng.nextInt(floor_tiles.length)];
         floor.walls.grid[x + half + 1][y] = hallTopWallMid[0];
         break;
       case TileType val when roomTopWallBottom.contains(val):
         floor.walls.grid[x - half - 1][y] = hallTopWallBottom[2];
         for (int w = -half; w <= half; w++) {
           floor.walls.grid[x + w][y] = null;
-          floor.floortiles.grid[x + w][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+          floor.floortiles.grid[x + w][y] =
+              floor_tiles[rng.nextInt(floor_tiles.length)];
         }
-        floor.floortiles.grid[x + half + 1][y] = floor_tiles[rng.nextInt(floor_tiles.length)];
+        floor.floortiles.grid[x + half + 1][y] =
+            floor_tiles[rng.nextInt(floor_tiles.length)];
         floor.walls.grid[x + half + 1][y] = hallTopWallBottom[0];
         break;
       default:
         break;
     }
-    if (((y - start - torchstart) == 0 || (y - start - torchstart) % torchspacing == 0) && torchstart != 0) {
+    if (((y - start - torchstart) == 0 ||
+            (y - start - torchstart) % torchspacing == 0) &&
+        torchstart != 0) {
       floor.decorations.grid[x + (torchside ? 0 : -1)][y] = Props.torch;
       torchside = !torchside;
     }
@@ -438,56 +526,68 @@ void placeVerticalHallway(
 }
 
 void placeHallwayCorner(Floor floor, int x, int y) {
-  if (floor.walls.grid[x][y - 1] == TileType.blank_tile && floor.walls.grid[x - 1][y] == null) {
+  if (floor.walls.grid[x][y - 1] == TileType.blank_tile &&
+      floor.walls.grid[x - 1][y] == null) {
     //corner turning from left to down, place top right corner of a room above x,y
     floor.decorations.grid[x][y - 3] = Props.cornertorch;
     floor.walls.grid[x - 1][y - 3] = TileType.room_topWallTopMid;
     floor.walls.grid[x - 1][y - 2] = TileType.room_topWallMidMid;
     floor.walls.grid[x - 1][y - 1] = TileType.room_topWallBottomMid;
-    floor.floortiles.grid[x - 1][y - 1] = floor_tiles[rng.nextInt(floor_tiles.length)];
+    floor.floortiles.grid[x - 1][y - 1] =
+        floor_tiles[rng.nextInt(floor_tiles.length)];
     floor.walls.grid[x][y - 3] = TileType.room_topWallTopMid;
     floor.walls.grid[x][y - 2] = TileType.room_topWallMidMid;
     floor.walls.grid[x][y - 1] = TileType.room_topWallBottomMid;
-    floor.floortiles.grid[x][y - 1] = floor_tiles[rng.nextInt(floor_tiles.length)];
+    floor.floortiles.grid[x][y - 1] =
+        floor_tiles[rng.nextInt(floor_tiles.length)];
     floor.walls.grid[x + 1][y - 3] = TileType.room_topWallTopRight;
     floor.walls.grid[x + 1][y - 2] = TileType.room_topWallMidRight;
     floor.walls.grid[x + 1][y - 1] = TileType.room_topWallBottomRight;
-    floor.floortiles.grid[x + 1][y - 1] = floor_tiles[rng.nextInt(floor_tiles.length)];
+    floor.floortiles.grid[x + 1][y - 1] =
+        floor_tiles[rng.nextInt(floor_tiles.length)];
     return;
   }
-  if (floor.walls.grid[x][y - 1] == TileType.blank_tile && floor.walls.grid[x + 1][y] == null) {
+  if (floor.walls.grid[x][y - 1] == TileType.blank_tile &&
+      floor.walls.grid[x + 1][y] == null) {
     //corner turning from right to down, place top left corner of a room above x,y
     //????borked???? didnt get placed
     floor.decorations.grid[x][y - 3] = Props.cornertorch;
     floor.walls.grid[x + 1][y - 3] = TileType.room_topWallTopMid;
     floor.walls.grid[x + 1][y - 2] = TileType.room_topWallMidMid;
     floor.walls.grid[x + 1][y - 1] = TileType.room_topWallBottomMid;
-    floor.floortiles.grid[x + 1][y - 1] = floor_tiles[rng.nextInt(floor_tiles.length)];
+    floor.floortiles.grid[x + 1][y - 1] =
+        floor_tiles[rng.nextInt(floor_tiles.length)];
     floor.walls.grid[x][y - 3] = TileType.room_topWallTopMid;
     floor.walls.grid[x][y - 2] = TileType.room_topWallMidMid;
     floor.walls.grid[x][y - 1] = TileType.room_topWallBottomMid;
-    floor.floortiles.grid[x][y - 1] = floor_tiles[rng.nextInt(floor_tiles.length)];
+    floor.floortiles.grid[x][y - 1] =
+        floor_tiles[rng.nextInt(floor_tiles.length)];
     floor.walls.grid[x - 1][y - 3] = TileType.room_topWallTopLeft;
     floor.walls.grid[x - 1][y - 2] = TileType.room_topWallMidLeft;
     floor.walls.grid[x - 1][y - 1] = TileType.room_topWallBottomLeft;
-    floor.floortiles.grid[x - 1][y - 1] = floor_tiles[rng.nextInt(floor_tiles.length)];
+    floor.floortiles.grid[x - 1][y - 1] =
+        floor_tiles[rng.nextInt(floor_tiles.length)];
     return;
   }
-  if (floor.walls.grid[x][y + 1] == TileType.blank_tile && floor.walls.grid[x - 1][y] == null) {
+  if (floor.walls.grid[x][y + 1] == TileType.blank_tile &&
+      floor.walls.grid[x - 1][y] == null) {
     //corner turning from left to up, place top right corner of a room above x,y
     floor.decorations.grid[x - 2][y - 3] = Props.cornertorch;
     floor.walls.grid[x - 1][y + 1] = TileType.room_bottomWallMid;
     floor.walls.grid[x][y + 1] = TileType.room_bottomWallMid;
-    floor.floortiles.grid[x][y + 1] = floor_tiles[rng.nextInt(floor_tiles.length)];
+    floor.floortiles.grid[x][y + 1] =
+        floor_tiles[rng.nextInt(floor_tiles.length)];
     floor.walls.grid[x + 1][y + 1] = TileType.room_bottomWallRight;
     return;
   }
-  if (floor.walls.grid[x][y + 1] == TileType.blank_tile && floor.walls.grid[x + 1][y] == null) {
+  if (floor.walls.grid[x][y + 1] == TileType.blank_tile &&
+      floor.walls.grid[x + 1][y] == null) {
     //corner turning from right to up, place top right corner of a room above x,y
     floor.decorations.grid[x + 1][y - 3] = Props.cornertorch;
     floor.walls.grid[x + 1][y + 1] = TileType.room_bottomWallMid;
     floor.walls.grid[x][y + 1] = TileType.room_bottomWallMid;
-    floor.floortiles.grid[x][y + 1] = floor_tiles[rng.nextInt(floor_tiles.length)];
+    floor.floortiles.grid[x][y + 1] =
+        floor_tiles[rng.nextInt(floor_tiles.length)];
     floor.walls.grid[x - 1][y + 1] = TileType.room_bottomWallLeft;
   }
 }
@@ -546,7 +646,9 @@ GroupConnection? findClosestGroup(
 
           if (best == null || dist < best.distance) {
             final currentconnection = GroupConnection(r, nr, dist);
-            if (!failedconnections.contains(currentconnection)) best = GroupConnection(r, nr, dist);
+            if (!failedconnections.contains(currentconnection)) {
+              best = GroupConnection(r, nr, dist);
+            }
           }
         }
       }
@@ -555,7 +657,13 @@ GroupConnection? findClosestGroup(
   return best;
 }
 
-bool connectRooms(Floor floor, List<Room> rooms, Room roomA, Room roomB, int corridorwidth) {
+bool connectRooms(
+  Floor floor,
+  List<Room> rooms,
+  Room roomA,
+  Room roomB,
+  int corridorwidth,
+) {
   if (checkXRangesOverlap(roomA, roomB)) {
     final aMin = roomA.x + 3;
     final aMax = roomA.x + roomA.width - 3;
@@ -616,18 +724,62 @@ bool connectRooms(Floor floor, List<Room> rooms, Room roomA, Room roomB, int cor
     }
   }
 
-  if (canPlaceHorizontalHallway(floor, roomA.centerX, roomB.centerX, roomA.centerY, 1, roomA, roomA) &&
-      canPlaceVerticalHallway(floor, roomA.centerY, roomB.centerY, roomB.centerX, 1, roomB, roomB)) {
+  if (canPlaceHorizontalHallway(
+        floor,
+        roomA.centerX,
+        roomB.centerX,
+        roomA.centerY,
+        1,
+        roomA,
+        roomA,
+      ) &&
+      canPlaceVerticalHallway(
+        floor,
+        roomA.centerY,
+        roomB.centerY,
+        roomB.centerX,
+        1,
+        roomB,
+        roomB,
+      )) {
     placeVerticalHallway(floor, roomA.centerY, roomB.centerY, roomB.centerX, 1);
-    placeHorizontalHallway(floor, roomA.centerX, roomB.centerX, roomA.centerY, 1);
+    placeHorizontalHallway(
+      floor,
+      roomA.centerX,
+      roomB.centerX,
+      roomA.centerY,
+      1,
+    );
     placeHallwayCorner(floor, roomB.centerX, roomA.centerY);
     roomA.connections!.add(rooms.indexOf(roomB));
     roomB.connections!.add(rooms.indexOf(roomA));
     return true;
-  } else if (canPlaceVerticalHallway(floor, roomA.centerY, roomB.centerY, roomA.centerX, 1, roomA, roomA) &&
-      canPlaceHorizontalHallway(floor, roomA.centerX, roomB.centerX, roomB.centerY, 1, roomB, roomB)) {
+  } else if (canPlaceVerticalHallway(
+        floor,
+        roomA.centerY,
+        roomB.centerY,
+        roomA.centerX,
+        1,
+        roomA,
+        roomA,
+      ) &&
+      canPlaceHorizontalHallway(
+        floor,
+        roomA.centerX,
+        roomB.centerX,
+        roomB.centerY,
+        1,
+        roomB,
+        roomB,
+      )) {
     placeVerticalHallway(floor, roomA.centerY, roomB.centerY, roomA.centerX, 1);
-    placeHorizontalHallway(floor, roomA.centerX, roomB.centerX, roomB.centerY, 1);
+    placeHorizontalHallway(
+      floor,
+      roomA.centerX,
+      roomB.centerX,
+      roomB.centerY,
+      1,
+    );
     placeHallwayCorner(floor, roomA.centerX, roomB.centerY);
     roomA.connections!.add(rooms.indexOf(roomB));
     roomB.connections!.add(rooms.indexOf(roomA));
@@ -637,30 +789,30 @@ bool connectRooms(Floor floor, List<Room> rooms, Room roomA, Room roomB, int cor
 }
 
 bool canPlaceProp(Floor floor, int rx, int ry, Props prop) {
-  if (rx + prop.width >= floor.width || ry + prop.height >= floor.height) return false;
-
+  if (rx + prop.width >= floor.width || ry + prop.height >= floor.height) {
+    return false;
+  }
   for (int dy = 0; dy < prop.height; dy++) {
     for (int dx = 0; dx < prop.width; dx++) {
       if (floor.decorations.grid[dx + rx][dy + ry] != null ||
           floor.decorations.grid[dx + rx][dy + ry] == Props.alpha_tile ||
-          floor.walls.grid[dx + rx][dy + ry] != null) {
+          floor.walls.grid[dx + rx][dy + ry] != null ||
+          floor.decorations.grid[dx + rx][dy + ry] == exit) {
         return false;
       }
     }
   }
-
-  // for (int dy = ry - 5; dy < ry; dy++) {
-  //   for (int dx = rx - 5; dx < rx; dx++) {
-  //     if (dx < 0 || dy < 0) continue;
-  //     if (floor.decorations.grid[dx][dy] != null) {
-  //       final foundprop = floor.decorations.grid[dx][dy];
-  //       bool overlapX = (dx + foundprop!.width > rx);
-  //       bool overlapY = (dy + foundprop!.height > ry);
-  //       if (overlapX && overlapY) return false;
-  //     }
-  //   }
-  // }
   return true;
+}
+
+void placeExit(Floor floor) {
+  final Room lastroom = floor.rooms.last;
+  floor.decorations.grid[lastroom.centerX - 1][lastroom.centerY - 1] = exit;
+  floor.exitPosition = Vector2(
+    (lastroom.centerX - 1) * 16.0,
+    (lastroom.centerY - 1) * 16.0,
+  );
+  print('placing at position: ${floor.exitPosition}');
 }
 
 void placeProps(Floor floor) {
@@ -668,7 +820,9 @@ void placeProps(Floor floor) {
     if (floor.rooms.indexOf(room) == 0) continue;
     switch (rng.nextInt(6)) {
       case 0:
-        roomlayout_centerpiece(floor, room);
+        if (room != floor.rooms.last) {
+          roomlayout_centerpiece(floor, room);
+        }
         break;
       case 1:
         roomlayout_corners(floor, room);
@@ -689,7 +843,10 @@ void placeProps(Floor floor) {
 
     while (count < totalprops && tries < 5) {
       tries++;
-      final Props prop = all_props[propcategory][proptype][rng.nextInt(all_props[propcategory][proptype].length)];
+      final Props prop =
+          all_props[propcategory][proptype][rng.nextInt(
+            all_props[propcategory][proptype].length,
+          )];
       int rx = room.x + 2 + rng.nextInt(room.width - prop.width - 3);
       int maxy = room.height - prop.height - 5;
       if (maxy < 1) continue;
@@ -714,9 +871,17 @@ class FloorTileLayer {
   final int height;
   final List<List<TileType?>> grid;
 
-  FloorTileLayer({required this.width, required this.height, required this.grid});
+  FloorTileLayer({
+    required this.width,
+    required this.height,
+    required this.grid,
+  });
 
-  factory FloorTileLayer.fillLayer(TileType? type, int floorwidth, int floorheight) {
+  factory FloorTileLayer.fillLayer(
+    TileType? type,
+    int floorwidth,
+    int floorheight,
+  ) {
     return FloorTileLayer(
       width: floorwidth,
       height: floorheight,
@@ -724,7 +889,9 @@ class FloorTileLayer {
         floorwidth,
         (_) => List.generate(
           floorheight,
-          (_) => type == TileType.floor_tile1 ? floor_tiles[rng.nextInt(floor_tiles.length)] : type,
+          (_) => type == TileType.floor_tile1
+              ? floor_tiles[rng.nextInt(floor_tiles.length)]
+              : type,
         ),
       ),
     );
@@ -736,9 +903,17 @@ class DecorationTileLayer {
   final int height;
   final List<List<Props?>> grid;
 
-  DecorationTileLayer({required this.width, required this.height, required this.grid});
+  DecorationTileLayer({
+    required this.width,
+    required this.height,
+    required this.grid,
+  });
 
-  factory DecorationTileLayer.fillLayer(Props? type, int floorwidth, int floorheight) {
+  factory DecorationTileLayer.fillLayer(
+    Props? type,
+    int floorwidth,
+    int floorheight,
+  ) {
     return DecorationTileLayer(
       width: floorwidth,
       height: floorheight,
@@ -775,7 +950,10 @@ class Room {
   }
 
   bool intersects(Room other) {
-    return (x < other.x + other.width && x + width > other.x && y < other.y + other.height && y + height > other.y);
+    return (x < other.x + other.width &&
+        x + width > other.x &&
+        y < other.y + other.height &&
+        y + height > other.y);
   }
 
   bool belongsToRoom(int cx, int cy) {
@@ -792,7 +970,9 @@ class GroupConnection {
 
   @override
   bool operator ==(Object other) =>
-      other is GroupConnection && ((roomA == other.roomA && roomB == other.roomB) || (roomA == other.roomB && roomB == other.roomA));
+      other is GroupConnection &&
+      ((roomA == other.roomA && roomB == other.roomB) ||
+          (roomA == other.roomB && roomB == other.roomA));
 
   @override
   int get hashCode => roomA.hashCode ^ roomB.hashCode;
@@ -818,7 +998,10 @@ void roomlayout_centerpiece(Floor floor, Room room) {
   }
 
   for (int propcount = 0; propcount < totalprops; propcount++) {
-    final Props prop = all_props[propcategory][proptype][rng.nextInt(all_props[propcategory][proptype].length)];
+    final Props prop =
+        all_props[propcategory][proptype][rng.nextInt(
+          all_props[propcategory][proptype].length,
+        )];
     int rx;
     int ry;
     if (prop.name.contains('vertical')) {
@@ -864,7 +1047,10 @@ void roomlayout_corners(Floor floor, Room room) {
   Props prop;
   int x;
   int y;
-  prop = all_props[propcategory][proptype][rng.nextInt(all_props[propcategory][proptype].length)];
+  prop =
+      all_props[propcategory][proptype][rng.nextInt(
+        all_props[propcategory][proptype].length,
+      )];
   x = room.x + 2;
   y = room.y + 3;
   if (canPlaceProp(floor, x, y, prop)) {
@@ -876,7 +1062,10 @@ void roomlayout_corners(Floor floor, Room room) {
     floor.decorations.grid[x][y] = prop;
   }
 
-  prop = all_props[propcategory][proptype][rng.nextInt(all_props[propcategory][proptype].length)];
+  prop =
+      all_props[propcategory][proptype][rng.nextInt(
+        all_props[propcategory][proptype].length,
+      )];
   x = room.x + room.width - 2 - prop.width;
   if (canPlaceProp(floor, x, y, prop)) {
     for (int dy = 0; dy < prop.height; dy++) {
@@ -887,7 +1076,10 @@ void roomlayout_corners(Floor floor, Room room) {
     floor.decorations.grid[x][y] = prop;
   }
 
-  prop = all_props[propcategory][proptype][rng.nextInt(all_props[propcategory][proptype].length)];
+  prop =
+      all_props[propcategory][proptype][rng.nextInt(
+        all_props[propcategory][proptype].length,
+      )];
   x = room.x + 2;
   y = room.y + room.height - 2 - prop.height;
   if (canPlaceProp(floor, x, y, prop)) {
@@ -899,7 +1091,10 @@ void roomlayout_corners(Floor floor, Room room) {
     floor.decorations.grid[x][y] = prop;
   }
 
-  prop = all_props[propcategory][proptype][rng.nextInt(all_props[propcategory][proptype].length)];
+  prop =
+      all_props[propcategory][proptype][rng.nextInt(
+        all_props[propcategory][proptype].length,
+      )];
   x = room.x + room.width - 2 - prop.width;
   y = room.y + room.height - 2 - prop.height;
   if (canPlaceProp(floor, x, y, prop)) {
@@ -920,7 +1115,10 @@ void roomlayout_topwallline(Floor floor, Room room) {
   int starty = room.y + 3;
 
   while (startx < room.x + room.width - 3) {
-    final Props prop = all_props[propcategory][proptype][rng.nextInt(all_props[propcategory][proptype].length)];
+    final Props prop =
+        all_props[propcategory][proptype][rng.nextInt(
+          all_props[propcategory][proptype].length,
+        )];
     if (!rng.nextBool()) {
       startx += prop.width;
       continue;

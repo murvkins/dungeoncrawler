@@ -15,6 +15,7 @@ dependencies:
   flutter_bloc: ^9.1.1
   provider: ^6.1.5+1
   google_fonts: ^8.0.2
+  bloc_concurrency: ^0.3.0
 
 dev_dependencies:
   flutter_test:

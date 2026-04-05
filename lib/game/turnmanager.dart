@@ -5,6 +5,7 @@ import 'package:dungeoncrawler/game/dungeoncrawl_game.dart';
 import 'package:dungeoncrawler/models/components/characters/enemies/enemy.dart';
 import 'package:dungeoncrawler/models/components/characters/enemies/enemy_states.dart';
 import 'package:dungeoncrawler/models/components/characters/player/player_states.dart';
+import 'package:dungeoncrawler/models/components/environment/dungeon_floors.dart';
 import 'package:dungeoncrawler/models/components/environment/floor_tiles.dart';
 import 'package:dungeoncrawler/models/enums/dungeonstatus.dart';
 import 'package:dungeoncrawler/models/enums/gamestate.dart';
@@ -13,34 +14,45 @@ import 'package:flame/components.dart';
 class TurnManager extends Component with HasGameReference<DungeonCrawl> {
   GameState state = GameState.playerTurn;
 
+  Floor? floor;
+
   List<Enemy> enemyList = [];
   bool enemyDecidedRan = false;
   bool decidingFinished = false;
 
   int restcounter = 0;
-  int restcounterthreshold = 20;
+  int restcounterthreshold = 30;
+  int tickcounter = 0;
+  int ticksbetweenheals = 2;
 
-  @override
-  void onMount() {
-    super.onMount();
-    Future.delayed(Duration.zero, () {
-      updateEnemyList();
-    });
+  void setFloor() {
+    if (game.dungeonBloc.state.dungeon.floors.isNotEmpty) {
+      floor = game.dungeonBloc.state.dungeon.floors.last;
+      Future.delayed(Duration.zero, () {
+        updateEnemyList();
+      });
+    }
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-    if (game.dungeonBloc.state.dungeon.floors.isEmpty) return;
+    if (floor == null) {
+      setFloor();
+      return;
+    }
+
     if (game.player == null) return;
 
     final player = game.player;
-    
+
     if (game.dungeonBloc.state.status == DungeonStatus.gameover) {
       state = GameState.gameOver;
     }
 
     final ticker = player!.animationTickers?[player.current];
+
+    // print(state);
 
     switch (state) {
       case GameState.playerTurn:
@@ -60,9 +72,14 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
           if (game.dungeonBloc.state.stats.hp <
                   game.dungeonBloc.state.stats.maxhp &&
               restcounter >= restcounterthreshold) {
-            game.dungeonBloc.add(Heal(amount: 1));
+            if (tickcounter == 0) {
+              tickcounter = ticksbetweenheals;
+              game.dungeonBloc.add(Heal(amount: 1));
+            } else {
+              tickcounter--;
+            }
           }
-        }        
+        }
 
         bool isAttacking = player.playerState == PlayerState.attack;
         bool isHurt = player.playerState == PlayerState.hurt;
@@ -113,20 +130,21 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
   }
 
   void updateEnemyList() {
-    enemyList = game.world.children
-        .whereType<Enemy>()
-        .where(
-          (e) =>
-              e.enemyState != EnemyState.dead &&
-              e.enemyState != EnemyState.sleeping &&
-              e.enemyState != EnemyState.wakingup,
-        )
-        .toList();
+    enemyList = List.from(
+      game.dungeonBloc.state.dungeon.floors.last.enemies.where(
+        (e) =>
+            e.enemyState != EnemyState.dead &&
+            e.enemyState != EnemyState.sleeping &&
+            e.enemyState != EnemyState.wakingup,
+      ),
+    );
   }
 
   void enemyDeciding(Vector2 playerDestination) {
     updateEnemyList();
 
+    // print(game.dungeonBloc.state.dungeon.floors.first.enemies.length);
+    // print('activie enemies: ${enemyList.length}');
     if (enemyList.isEmpty) {
       decidingFinished = true;
       return;
@@ -169,6 +187,7 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
     final activeenemies = enemyList.where(
       (element) => element.queuedAction != EnemyAction.none,
     );
+    // print(activeenemies.length);
 
     if (activeenemies.isEmpty) {
       state = GameState.playerTurn;
@@ -231,10 +250,15 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
     Vector2 potentialTarget = e.position + (getFacingVector(e) * 16);
     if (!e.isColliding(potentialTarget) &&
         !isTileOccupied(potentialTarget, e)) {
-      e.targetPosition = potentialTarget;
-      e.isMoving = true;
-      e.enemyState = EnemyState.walk;
-      e.current = EnemyStateFacing.fromStateFacing(e.enemyState, e.enemyFacing);
+      if (!e.snapIfDistant(game.player!.position, potentialTarget)) {
+        e.targetPosition = potentialTarget;
+        e.isMoving = true;
+        e.enemyState = EnemyState.walk;
+        e.current = EnemyStateFacing.fromStateFacing(
+          e.enemyState,
+          e.enemyFacing,
+        );
+      }
     } else {
       e.enemyState = EnemyState.idle;
     }
@@ -242,11 +266,12 @@ class TurnManager extends Component with HasGameReference<DungeonCrawl> {
 
   void resetRestCounter() {
     restcounter = 0;
+    tickcounter = 0;
   }
 
   void resetGame() {
     state = GameState.playerTurn;
-    restcounter = 0;
+    resetRestCounter();
   }
 
   Vector2 getFacingVector(Enemy e) {

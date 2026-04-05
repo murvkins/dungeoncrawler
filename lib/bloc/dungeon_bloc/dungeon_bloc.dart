@@ -1,4 +1,7 @@
+import 'package:bloc_concurrency/bloc_concurrency.dart';
+import 'package:dungeoncrawler/models/components/characters/enemies/enemy.dart';
 import 'package:dungeoncrawler/models/components/characters/player/player_stats.dart';
+import 'package:dungeoncrawler/models/components/environment/floor_tiles.dart';
 import 'package:dungeoncrawler/models/enums/dungeonstatus.dart';
 import 'package:equatable/equatable.dart';
 import 'package:dungeoncrawler/models/components/environment/dungeon_floors.dart';
@@ -27,7 +30,7 @@ class DungeonBloc extends Bloc<DungeonEvent, DungeonState> {
       );
     });
 
-    on<AddFloor>((event, emit) {
+    on<AddFloor>((event, emit) async {
       final newFloor = Floor.newFloor();
       final updatedDungeon = Dungeon(
         floors: [
@@ -35,6 +38,18 @@ class DungeonBloc extends Bloc<DungeonEvent, DungeonState> {
           newFloor,
         ],
       );
+      emit(state.copyWith(dungeon: updatedDungeon));      
+    },
+    transformer: droppable(),
+    );
+
+    on<SpawnEnemies>((event, emit) {      
+      final floors = state.dungeon.floors;
+      if (floors.isNotEmpty) {
+        floors.last.enemies = event.enemies;
+      }      
+      final updatedDungeon = Dungeon(floors: List.from(floors));
+      
       emit(state.copyWith(dungeon: updatedDungeon));
     });
 
@@ -48,6 +63,7 @@ class DungeonBloc extends Bloc<DungeonEvent, DungeonState> {
           state.copyWith(
             stats: stats.copyWith(
               level: stats.level + 1,
+              hp: stats.hp + rng.nextInt(5)+1,
               maxhp: stats.maxhp + 5,
               attack: stats.attack + 1,
               xp: xpbalance,

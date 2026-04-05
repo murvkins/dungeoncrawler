@@ -11,7 +11,6 @@ import 'package:dungeoncrawler/models/components/environment/darkness.dart';
 import 'package:dungeoncrawler/models/components/environment/dungeon_floors.dart';
 import 'package:dungeoncrawler/models/components/environment/floor_tiles.dart';
 import 'package:dungeoncrawler/models/components/environment/lighting.dart';
-import 'package:dungeoncrawler/game/turnmanager.dart';
 import 'package:dungeoncrawler/models/enums/priority.dart';
 import 'package:dungeoncrawler/models/components/environment/props.dart';
 import 'package:dungeoncrawler/models/components/environment/torches.dart';
@@ -96,6 +95,8 @@ class GenerateMap extends Component with HasGameReference<DungeonCrawl>, Keyboar
   void _onNewState(DungeonState state) {
     if (state.dungeon.floors.isEmpty || _isBuilding) return;
 
+    game.world.updateTree(0);
+
     final oldSprites = game.world.children
         .where((e) => e is ImageComposition || e is Torch || e is SpriteComponent || e is Prop || e is Enemy || e is DarknessLayer)
         .toList();
@@ -107,9 +108,9 @@ class GenerateMap extends Component with HasGameReference<DungeonCrawl>, Keyboar
     final player = game.world.children.whereType<Player>().firstOrNull;
     player?.pressedKeys.clear();
 
-    Future.delayed(Duration.zero, () {
-      game.world.children.whereType<TurnManager>().firstOrNull?.updateEnemyList();
-    });
+    // Future.delayed(Duration.zero, () {
+    //   game.world.children.whereType<TurnManager>().firstOrNull?.updateEnemyList();
+    // });
   }
 
   void buildMap(DungeonState state) async {
@@ -127,7 +128,7 @@ class GenerateMap extends Component with HasGameReference<DungeonCrawl>, Keyboar
 
       final mapSize = Vector2(floortiles.width * 16.0, floortiles.height * 16.0);
 
-      final ghostRect = Rect.fromLTWH(0, 0, 1, 1);
+      final ghostRect = Rect.fromLTWH(0, 0, 1, 1);      
 
       void anchorComposition(ImageComposition comp, Image spriteSheet) {
         comp.add(spriteSheet, Vector2.zero(), source: ghostRect);
@@ -216,7 +217,7 @@ class GenerateMap extends Component with HasGameReference<DungeonCrawl>, Keyboar
                 break;
               case SheetType.coffins:
                 sheet = coffinsSpriteSheet;
-                break;
+                break;              
               case SheetType.torches:
                 if (rng.nextDoubleBetween(0, 100) > 20.0) {
                   if (tile == Props.cornertorch) {
@@ -232,12 +233,13 @@ class GenerateMap extends Component with HasGameReference<DungeonCrawl>, Keyboar
               sprite: sheet.getSpriteGroup(tile.starty, tile.startx, tile.width, tile.height),
               position: Vector2(x * 16.0, y * 16.0),
               size: Vector2(tile.width * 16.0, tile.height * 16.0),
+              interactable: tile == exit,
             );
             game.world.add(prop);
           }
         }
       }
-
+      
       onMapReady?.call(state);
     } catch (e) {
       print('Error building map: $e');
@@ -310,7 +312,8 @@ class GenerateMap extends Component with HasGameReference<DungeonCrawl>, Keyboar
         }
       }
     }
-    floor.enemies = enemies;
+    //floor.enemies = enemies;
+    game.dungeonBloc.add(SpawnEnemies(enemies: enemies));
     game.world.addAll(enemies);
   }
 

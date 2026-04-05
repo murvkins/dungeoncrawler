@@ -124,6 +124,29 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
     }
   }
 
+  bool snapIfDistant(Vector2 playerPosition, Vector2 target) {    
+    final double distance = (position - playerPosition).length;
+    if (distance >= 130.0) {
+      position.setFrom(target);
+      movePercent = 0.0;
+      isMoving = false;
+      enemyState = EnemyState.idle;
+      updateVisualState();
+      return true;
+    }
+    return false;
+  }
+
+  void snapToTarget() {
+    if (isMoving) {
+      position.setFrom(targetPosition);
+      movePercent = 0.0;
+      isMoving = false;
+      enemyState = EnemyState.idle;
+      updateVisualState();
+    }
+  }
+
   bool isColliding(Vector2 pos) {
     final floor = renderedState.dungeon.floors.last;
     final int gx = (pos.x / 16).floor();
@@ -163,7 +186,7 @@ class Enemy extends SpriteAnimationGroupComponent<EnemyStateFacing>
   }
 
   void wakeUp() {
-    enemyState = EnemyState.wakingup;    
+    enemyState = EnemyState.wakingup;
     playAnimationOnce(EnemyState.idle);
     game.world.children.whereType<TurnManager>().firstOrNull?.updateEnemyList();
   }

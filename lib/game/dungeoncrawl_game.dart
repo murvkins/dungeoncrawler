@@ -6,24 +6,26 @@ import 'package:dungeoncrawler/models/components/environment/lighting.dart';
 import 'package:dungeoncrawler/models/components/characters/player/player.dart';
 import 'package:dungeoncrawler/models/components/environment/props.dart';
 import 'package:dungeoncrawler/game/turnmanager.dart';
+import 'package:dungeoncrawler/models/components/overlays/exitindicator.dart';
 import 'package:dungeoncrawler/models/enums/dungeonstatus.dart';
 import 'package:flame/camera.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart' show Colors;
-import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 
-class DungeonCrawl extends FlameGame with HasKeyboardHandlerComponents {
+class DungeonCrawl extends FlameGame
+    with HasKeyboardHandlerComponents, HasCollisionDetection {
   DungeonCrawl({required this.dungeonBloc});
 
   final DungeonBloc dungeonBloc;
   Player? player;
   late final TurnManager turnManager;
+  late final ExitIndicator indicator;
 
   @override
   Future<void> onLoad() async {
+    // debugMode = true;
     world.children.register<Prop>();
     world.children.register<Player>();
     camera.viewfinder.anchor = Anchor.center;
@@ -42,39 +44,39 @@ class DungeonCrawl extends FlameGame with HasKeyboardHandlerComponents {
     await world.add(
       GenerateMap(
         dungeonBloc: dungeonBloc,
-        onMapReady: (state) => spawnPlayer(state),
+        onMapReady: (state) {
+          spawnPlayer(state);
+        },
       ),
     );
 
     turnManager = TurnManager();
-
     world.add(turnManager);
-    dungeonBloc.add(GenerateNewMap());
   }
 
-  @override
-  KeyEventResult onKeyEvent(
-    KeyEvent event,
-    Set<LogicalKeyboardKey> keysPressed,
-  ) {
-    super.onKeyEvent(event, keysPressed);
-    final isKeyDown = event is KeyDownEvent;
-    final isEnter = keysPressed.contains(LogicalKeyboardKey.enter);
+  // @override
+  // KeyEventResult onKeyEvent(
+  //   KeyEvent event,
+  //   Set<LogicalKeyboardKey> keysPressed,
+  // ) {
+  //   super.onKeyEvent(event, keysPressed);
+  //   final isKeyDown = event is KeyDownEvent;
+  //   final isEnter = keysPressed.contains(LogicalKeyboardKey.enter);
 
-    if (isKeyDown && isEnter) {
-      dungeonBloc.add(GenerateNewMap());
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
+  //   if (isKeyDown && isEnter) {
+  //     dungeonBloc.add(GenerateNewMap());
+  //     return KeyEventResult.handled;
+  //   }
+  //   return KeyEventResult.ignored;
+  // }
 
   @override
-  void update(double dt) {    
-    super.update(dt);
-    print(dungeonBloc.state.status);
+  void update(double dt) {
+    super.update(dt);    
+    // print(dungeonBloc.state.status);
     if (dungeonBloc.state.status == DungeonStatus.gameover) {
       if (!overlays.isActive('GameOver')) {
-        overlays.add('GameOver');        
+        overlays.add('GameOver');
       }
     }
   }
